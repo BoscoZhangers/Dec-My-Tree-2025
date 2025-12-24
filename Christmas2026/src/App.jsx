@@ -19,7 +19,7 @@ export default function App() {
 
         <Suspense fallback={null}>
           {/* ✅ The Model is safe here because it is inside Canvas */}
-          <Tree position={[0, -100, 0]} />
+          <Tree position={[0, -125, 0]} />
         </Suspense>
 
         <OrbitControls />
