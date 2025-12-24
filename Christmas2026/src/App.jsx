@@ -18,11 +18,16 @@ export default function App() {
         <Environment preset="park" />
 
         <Suspense fallback={null}>
-          {/* ✅ The Model is safe here because it is inside Canvas */}
+          {}
           <Tree position={[0, -125, 0]} />
         </Suspense>
 
-        <OrbitControls />
+        <OrbitControls 
+          makeDefault
+          minDistance={75}
+          maxDistance={300}
+          enablePan={false}
+        />
       </Canvas>
       
     </div>
