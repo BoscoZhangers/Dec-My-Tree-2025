@@ -1,9 +1,15 @@
+// src/firebase.js
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+
 const firebaseConfig = {
-    apiKey: "AIzaSyCvJVkO7_Fc-5A9MFMNy4mskumCY2CQXic",
-    authDomain: "christmas2026-db5d8.firebaseapp.com",
-    projectId: "christmas2026-db5d8",
-    storageBucket: "christmas2026-db5d8.firebasestorage.app",
-    messagingSenderId: "844427605360",
-    appId: "1:844427605360:web:ba72499896d3a5e18c8bb5",
-    measurementId: "G-5M92HPDNBL"
-  };
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID
+};
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
