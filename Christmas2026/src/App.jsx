@@ -309,7 +309,7 @@ export default function App() {
           makeDefault
           enablePan={false}
           enabled={!isModalOpen}
-          minDistance={10} 
+          minDistance={80} 
           maxDistance={400} 
           maxPolarAngle={Math.PI / 2} 
           minPolarAngle={0.3}         
