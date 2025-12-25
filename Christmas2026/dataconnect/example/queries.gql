@@ -1,0 +1,41 @@
+mutation CreatePublicList($name: String!, $description: String!) @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  list_insert(data: {
+    name: $name,
+    description: $description,
+    isPublic: true,
+    userId_expr: "uuidV4()", # Dummy value since public lists don't need a user
+    createdAt_expr: "request.time",
+    updatedAt_expr: "request.time"
+  })
+}
+
+query GetPublicLists @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  lists(where: {isPublic: {eq: true}}) {
+    id
+    name
+    description
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreatePrivateList($name: String!, $description: String!) @auth(level: USER) {
+  list_insert(data: {
+    name: $name,
+    description: $description,
+    isPublic: false,
+    userId_expr: "auth.uid",
+    createdAt_expr: "request.time",
+    updatedAt_expr: "request.time"
+  })
+}
+
+query GetMyPrivateLists @auth(level: USER) {
+  lists(where: {userId: {eq_expr: "auth.uid"}, isPublic: {eq: false}}) {
+    id
+    name
+    description
+    createdAt
+    updatedAt
+  }
+}
