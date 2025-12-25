@@ -1,19 +1,43 @@
-import React, { useMemo, useRef } from 'react'
+import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF, Billboard, Line } from '@react-three/drei'
+import { useGLTF, Billboard, Line, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { Ornament } from './Ornament' 
 
-// --- SPACING CONFIGURATION ---
-// Vertical: High value (30) prevents stacking on top of each other
+// --- CONFIGURATION ---
 const MIN_V_SPACING = 7
-// Horizontal: Low value (12) allows them to be close side-by-side
 const MIN_H_SPACING = 7
-
-// The position of the tree as defined in App.jsx
 const TREE_Y_OFFSET = -100
 
-// --- HELPERS (Unchanged) ---
+// --- CELEBRATION COMPONENT ---
+function CelebrationText({ visible }) {
+  if (!visible) return null
+
+  return (
+    <Billboard position={[0, 255, 0]} follow={true}>
+      <Text
+        fontSize={16}
+        color="#FFD700"
+        // Updated URL to a more reliable CDN link
+        font="/GreatVibes-Regular.ttf" 
+        anchorX="center"
+        anchorY="middle"
+        maxWidth={200}
+        textAlign="center"
+        lineHeight={1.2}
+      >
+        {"Merry Christmas\n2025!!"}
+        <meshStandardMaterial 
+          emissive="#FFD700" 
+          emissiveIntensity={3} 
+          toneMapped={false} 
+        />
+      </Text>
+    </Billboard>
+  )
+}
+
+// --- HELPERS ---
 function createGlowTexture() {
   const canvas = document.createElement('canvas')
   canvas.width = 128
@@ -26,6 +50,120 @@ function createGlowTexture() {
   context.fillStyle = gradient
   context.fillRect(0, 0, 128, 128)
   return new THREE.CanvasTexture(canvas)
+}
+
+// --- LIGHTS & WIRE COMPONENT ---
+function TreeLights() {
+  const bulbCount = 45        
+  const radiusBottom = 55     
+  const height = 180        
+  const yStart = 35           
+  const turns = 6             
+  const groupRef = useRef()
+
+  const { curve } = useMemo(() => {
+    const pts = []
+    const steps = 200 
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const y = yStart + (t * height)
+      const r = radiusBottom * (1 - t * 0.9) 
+      const angle = t * Math.PI * 2 * turns
+      const x = Math.cos(angle) * r
+      const z = Math.sin(angle) * r
+      pts.push(new THREE.Vector3(x, y, z))
+    }
+    const c = new THREE.CatmullRomCurve3(pts)
+    return { curve: c }
+  }, [])
+
+  const bulbPositions = useMemo(() => {
+    const positions = []
+    for(let i=0; i<bulbCount; i++) {
+      const t = i / bulbCount
+      const point = curve.getPointAt(t)
+      positions.push({ pos: point, id: i })
+    }
+    return positions
+  }, [curve, bulbCount])
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const t = clock.getElapsedTime()
+    groupRef.current.rotation.y = Math.sin(t * 0.5) * 0.05
+    groupRef.current.rotation.z = Math.cos(t * 0.3) * 0.02
+  })
+
+  return (
+    <group ref={groupRef}>
+      <mesh>
+        <tubeGeometry args={[curve, 128, 0.5, 8, false]} />
+        <meshStandardMaterial color="#061a06" roughness={0.3} metalness={0.8} />
+      </mesh>
+      {bulbPositions.map((data, i) => (
+        <LightBulb key={i} position={data.pos} index={i} />
+      ))}
+    </group>
+  )
+}
+
+function LightBulb({ position, index }) {
+  const meshRef = useRef()
+  const meshRef2 = useRef()
+  const glowRef = useRef()
+  const bulbGroupRef = useRef()
+  const glowTex = useMemo(() => createGlowTexture(), [])
+
+  const colorsA = ['#FF6A00', '#FF8C00', '#FFA500'] 
+  const colorsB = ['#CC7700', '#E69900', '#FFB300'] 
+  const baseColorIndex = index % 3
+
+  useFrame(({ clock }) => {
+    if(!meshRef.current?.material || !meshRef2.current?.material || !glowRef.current?.material) return
+    const time = clock.getElapsedTime()
+    const twinkle = Math.sin(time * 2.5 + index * 0.8)
+    const isPhaseOne = Math.floor(time * 1.1 + index * 0.1) % 2 === 0
+    let activeColorStr = (index % 2 === 0) 
+        ? (isPhaseOne ? colorsA[baseColorIndex] : colorsB[baseColorIndex])
+        : (isPhaseOne ? colorsB[baseColorIndex] : colorsA[baseColorIndex])
+    const activeColor = new THREE.Color(activeColorStr)
+
+    const bulbs = [meshRef.current.material, meshRef2.current.material]
+    bulbs.forEach(mat => {
+      mat.color.copy(activeColor)
+      mat.emissive.copy(activeColor)
+      mat.emissiveIntensity = 1.0 + twinkle * 0.7
+    })
+
+    glowRef.current.material.color.copy(activeColor)
+    glowRef.current.material.opacity = 0.2 + (twinkle * 0.1)
+    if (bulbGroupRef.current) bulbGroupRef.current.rotation.x = Math.sin(time + index) * 0.1
+  })
+
+  return (
+    <group position={position} ref={bulbGroupRef}>
+      <mesh position={[0, 0, 0]}>
+        <cylinderGeometry args={[0.5, 0.5, 1.2, 8]} />
+        <meshStandardMaterial color="#020202" roughness={1} />
+      </mesh>
+      <group position={[0, -1.8, 0]} scale={[1.4, 1.4, 1.4]}> 
+         <mesh position={[0, 0.8, 0]}>
+            <cylinderGeometry args={[0.35, 0.8, 1, 16]} />
+            <meshStandardMaterial ref={meshRef} toneMapped={false} />
+         </mesh>
+         <mesh ref={meshRef2} position={[0, 0.1, 0]} scale={[1, 1.1, 1]}> 
+            <sphereGeometry args={[0.8, 16, 16]} />
+            <meshStandardMaterial toneMapped={false} />
+         </mesh>
+      </group>
+      <Billboard position={[0, -2.5, 0]}>
+         <mesh ref={glowRef}>
+            <planeGeometry args={[14, 14]} /> 
+            <meshBasicMaterial map={glowTex} transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={0.4} />
+         </mesh>
+      </Billboard>
+    </group>
+  )
 }
 
 function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
@@ -85,106 +223,76 @@ function NeonStar({ size = 1, position = [0, 0, 0] }) {
 // --- MAIN TREE COMPONENT ---
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
-  
   const clickStart = useRef({ x: 0, y: 0, time: 0 })
+  
+  // Celebration Logic
+  const [showCelebration, setShowCelebration] = useState(false)
+  const lastOrnLength = useRef(ornaments.length)
+
+  useEffect(() => {
+    // Only trigger if a new ornament was added, not on initial load
+    if (ornaments.length > lastOrnLength.current) {
+      setShowCelebration(true)
+      const timer = setTimeout(() => setShowCelebration(false), 5000)
+      return () => clearTimeout(timer)
+    }
+    lastOrnLength.current = ornaments.length
+  }, [ornaments.length])
 
   const handlePointerDown = (e) => {
     e.stopPropagation()
-    clickStart.current = { 
-      x: e.clientX, 
-      y: e.clientY,
-      time: Date.now() 
-    }
+    clickStart.current = { x: e.clientX, y: e.clientY, time: Date.now() }
   }
 
   const handlePointerUp = (e) => {
     e.stopPropagation()
-
-    // 1. TIME CHECK
     if (Date.now() - clickStart.current.time > 200) return 
-
-    // 2. DISTANCE CHECK (Drag prevention)
     const dx = Math.abs(e.clientX - clickStart.current.x)
     const dy = Math.abs(e.clientY - clickStart.current.y)
     if (dx > 10 || dy > 10) return
 
-    // 3. TRUNK CHECK
     const hitName = e.object.name.toLowerCase()
     const matName = e.object.material.name ? e.object.material.name.toLowerCase() : ''
     
-    // Name based check
     if (hitName.includes('trunk') || hitName.includes('bark') || hitName.includes('stand') || 
-        matName.includes('bark') || matName.includes('wood')) {
-       console.log("Blocked: Clicked on trunk mesh")
-       return
-    }
+        matName.includes('bark') || matName.includes('wood')) return
 
-    // Geometry based check
-    // e.point is in WORLD space. The tree center is at (0, -100, 0).
     const radius = Math.sqrt(e.point.x**2 + e.point.z**2)
-    // Adjust Y check because tree starts at -100.
-    if (e.point.y < (TREE_Y_OFFSET + 40) && radius < 8) {
-       console.log("Blocked: Clicked too close to trunk center")
-       return
-    }
+    if (e.point.y < (TREE_Y_OFFSET + 40) && radius < 8) return
 
-    // --- 4. CYLINDRICAL PROXIMITY CHECK ---
-    // We compare e.point (World Click) vs ornaments (Local Space + Offset)
     for (let orn of ornaments) {
-      // CONVERT ORNAMENT TO WORLD SPACE
-      // Ornament is stored relative to [0, -100, 0], so we add that offset.
       const ornWorldY = orn.position[1] + TREE_Y_OFFSET
       const ornWorldX = orn.position[0]
       const ornWorldZ = orn.position[2]
-
-      // 1. Vertical Distance (Y-Axis)
       const distY = Math.abs(e.point.y - ornWorldY)
-
-      // 2. Horizontal Distance (XZ-Plane)
-      const distXZ = Math.sqrt(
-        Math.pow(e.point.x - ornWorldX, 2) + 
-        Math.pow(e.point.z - ornWorldZ, 2)
-      )
-
-      // LOGIC: If it's too close Vertically AND too close Horizontally, block it.
-      // This creates a "Cylinder" of protection around the ornament.
-      if (distY < MIN_V_SPACING && distXZ < MIN_H_SPACING) {
-        console.log("Blocked: Overlaps existing ornament")
-        return 
-      }
+      const distXZ = Math.sqrt(Math.pow(e.point.x - ornWorldX, 2) + Math.pow(e.point.z - ornWorldZ, 2))
+      if (distY < MIN_V_SPACING && distXZ < MIN_H_SPACING) return 
     }
 
-    // 5. SUCCESS
     onTreeClick(e.point) 
     setActiveId(null)
   }
 
   return (
     <group dispose={null}>
-      
       <NeonStar size={7} position={[0, 225, 0]} />
-
-      <primitive 
-        object={scene} 
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-      />
       
+      {/* Celebration Text follows camera automatically via Billboard */}
+      <CelebrationText visible={showCelebration} />
+      
+      <TreeLights />
+      <primitive object={scene} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} />
       {ornaments.map((orn) => (
         <Ornament 
-          key={orn.id}
-          position={orn.position}
-          color={orn.color}
-          message={orn.message}
-          textureData={orn.textureData}
-          
-          isActive={activeId === orn.id}
-          onActivate={() => {
-             setActiveId(activeId === orn.id ? null : orn.id)
-          }}
+          key={orn.id} 
+          position={orn.position} 
+          color={orn.color} 
+          message={orn.message} 
+          textureData={orn.textureData} 
+          isActive={activeId === orn.id} 
+          onActivate={() => setActiveId(activeId === orn.id ? null : orn.id)} 
         />
       ))}
-
     </group>
   )
 }
