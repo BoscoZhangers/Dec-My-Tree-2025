@@ -4,6 +4,15 @@ import { useGLTF, Billboard, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { Ornament } from './Ornament' 
 
+// --- SPACING CONFIGURATION ---
+// Vertical: High value (30) prevents stacking on top of each other
+const MIN_V_SPACING = 7
+// Horizontal: Low value (12) allows them to be close side-by-side
+const MIN_H_SPACING = 7
+
+// The position of the tree as defined in App.jsx
+const TREE_Y_OFFSET = -100
+
 // --- HELPERS (Unchanged) ---
 function createGlowTexture() {
   const canvas = document.createElement('canvas')
@@ -77,11 +86,8 @@ function NeonStar({ size = 1, position = [0, 0, 0] }) {
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
   
-  // 1. STATE TRACKING
-  // Stores { x, y, time } from when the user first presses down
   const clickStart = useRef({ x: 0, y: 0, time: 0 })
 
-  // 2. POINTER DOWN (Start tracking)
   const handlePointerDown = (e) => {
     e.stopPropagation()
     clickStart.current = { 
@@ -91,23 +97,64 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
     }
   }
 
-  // 3. POINTER UP (The Decision)
   const handlePointerUp = (e) => {
     e.stopPropagation()
 
-    // A. TIME CHECK
-    // If held longer than 200ms (0.2s), it is a "Long Press" or "Drag". IGNORE.
-    const duration = Date.now() - clickStart.current.time
-    if (duration > 200) return 
+    // 1. TIME CHECK
+    if (Date.now() - clickStart.current.time > 200) return 
 
-    // B. DISTANCE CHECK
-    // If moved more than 10 pixels, it is a "Swipe" or "Orbit". IGNORE.
+    // 2. DISTANCE CHECK (Drag prevention)
     const dx = Math.abs(e.clientX - clickStart.current.x)
     const dy = Math.abs(e.clientY - clickStart.current.y)
     if (dx > 10 || dy > 10) return
 
-    // C. SUCCESS
-    // It was fast (<200ms) and stationary (<10px). Create Ornament.
+    // 3. TRUNK CHECK
+    const hitName = e.object.name.toLowerCase()
+    const matName = e.object.material.name ? e.object.material.name.toLowerCase() : ''
+    
+    // Name based check
+    if (hitName.includes('trunk') || hitName.includes('bark') || hitName.includes('stand') || 
+        matName.includes('bark') || matName.includes('wood')) {
+       console.log("Blocked: Clicked on trunk mesh")
+       return
+    }
+
+    // Geometry based check
+    // e.point is in WORLD space. The tree center is at (0, -100, 0).
+    const radius = Math.sqrt(e.point.x**2 + e.point.z**2)
+    // Adjust Y check because tree starts at -100.
+    if (e.point.y < (TREE_Y_OFFSET + 40) && radius < 8) {
+       console.log("Blocked: Clicked too close to trunk center")
+       return
+    }
+
+    // --- 4. CYLINDRICAL PROXIMITY CHECK ---
+    // We compare e.point (World Click) vs ornaments (Local Space + Offset)
+    for (let orn of ornaments) {
+      // CONVERT ORNAMENT TO WORLD SPACE
+      // Ornament is stored relative to [0, -100, 0], so we add that offset.
+      const ornWorldY = orn.position[1] + TREE_Y_OFFSET
+      const ornWorldX = orn.position[0]
+      const ornWorldZ = orn.position[2]
+
+      // 1. Vertical Distance (Y-Axis)
+      const distY = Math.abs(e.point.y - ornWorldY)
+
+      // 2. Horizontal Distance (XZ-Plane)
+      const distXZ = Math.sqrt(
+        Math.pow(e.point.x - ornWorldX, 2) + 
+        Math.pow(e.point.z - ornWorldZ, 2)
+      )
+
+      // LOGIC: If it's too close Vertically AND too close Horizontally, block it.
+      // This creates a "Cylinder" of protection around the ornament.
+      if (distY < MIN_V_SPACING && distXZ < MIN_H_SPACING) {
+        console.log("Blocked: Overlaps existing ornament")
+        return 
+      }
+    }
+
+    // 5. SUCCESS
     onTreeClick(e.point) 
     setActiveId(null)
   }
