@@ -131,10 +131,13 @@ export default function App() {
           makeDefault
           enablePan={false}
           enabled={!isModalOpen}
+
           minDistance={10} 
           maxDistance={400} 
-          maxPolarAngle={Math.PI / 2}
-          minPolarAngle={0.3}
+
+          // Restrictions on Rotations
+          maxPolarAngle={Math.PI / 2}  // Lower Bound
+          minPolarAngle={0.3}          // Upper Bound
         />
       </Canvas>
       
