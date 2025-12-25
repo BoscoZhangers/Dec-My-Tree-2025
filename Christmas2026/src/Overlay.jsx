@@ -202,7 +202,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
 
   const handleSubmit = () => {
     if (message.length < 1 || message.length > 50) {
-      alert("Message must be 1-50 chars")
+      alert("Message must be 1-50 characters")
       return
     }
     setIsSubmitting(true)
