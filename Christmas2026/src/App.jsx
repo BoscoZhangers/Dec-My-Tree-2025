@@ -8,6 +8,7 @@ import { db } from './firebase'
 // ------------------------
 import { Tree } from './Tree' 
 import { Overlay } from './Overlay' 
+import { MusicPlayer } from './MusicPlayer' // <--- 1. IMPORT ADDED
 
 // --- CONFIGURATION ---
 const TREE_POSITION = [0, -100, 0] 
@@ -259,6 +260,9 @@ export default function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+      
+      {/* 2. MUSIC PLAYER COMPONENT ADDED */}
+      <MusicPlayer />
       
       <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
 
