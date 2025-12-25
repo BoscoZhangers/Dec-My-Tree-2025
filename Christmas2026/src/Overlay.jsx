@@ -10,7 +10,7 @@ const PALETTE = [
   '#000000', '#FF69B4', '#00CED1'
 ]
 
-// --- 1. THE INTERACTIVE SPHERE (No Changes) ---
+// --- 1. THE INTERACTIVE SPHERE ---
 function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, clearTrigger }) {
   const meshRef = useRef()
   const textureRef = useRef()
@@ -79,11 +79,30 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     if (textureRef.current) textureRef.current.needsUpdate = true
   }
 
+  // --- POINTER EVENT HANDLERS ---
+
+  // NEW: Change cursor on hover
+  const handlePointerOver = (e) => {
+    e.stopPropagation()
+    // Use crosshair for precision tools
+    document.body.style.cursor = 'crosshair'
+  }
+
+  // NEW: Reset cursor on leave
+  const handlePointerOut = (e) => {
+    e.stopPropagation()
+    document.body.style.cursor = 'auto'
+  }
+
   const handlePointerDown = (e) => {
     if (!e.uv) return
     e.stopPropagation() 
     setOrbitEnabled(false) 
     e.target.setPointerCapture(e.pointerId)
+    
+    // Ensure cursor stays crosshair while dragging even if fast
+    document.body.style.cursor = 'crosshair'
+
     if (tool === 'bucket') {
       fillBucket()
     } else {
@@ -105,11 +124,17 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     lastUV.current = null
     e.target.releasePointerCapture(e.pointerId)
     setOrbitEnabled(true) 
+    // Reset cursor (handlePointerOver will catch it again if still hovering)
+    document.body.style.cursor = 'auto' 
   }
 
   return (
     <mesh 
       ref={meshRef}
+      // Attach new hover handlers
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      // Existing handlers
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -320,7 +345,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
               display: 'grid', 
               /* Desktop: 4 cols. Mobile: 6 cols. */
               gridTemplateColumns: isMobile ? 'repeat(6, 1fr)' : 'repeat(4, 1fr)', 
-              /* Desktop Gap: 15px (Reduced from 20). Mobile Gap: 10px */
+              /* Desktop Gap: 15px. Mobile Gap: 10px */
               gap: isMobile ? '10px' : '15px',
               width: isMobile ? '100%' : '90%'
             }}>
@@ -374,7 +399,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
         <div className="right-panel">
           <div style={{ position: 'absolute', top: 10, width: '100%', textAlign: 'center', pointerEvents: 'none', zIndex: 10 }}>
             <span style={{ background: 'rgba(0,0,0,0.5)', padding: '5px 15px', borderRadius: '20px', color: '#aaa', fontSize: '0.7rem', fontFamily: 'inherit' }}>
-              Drag Sphere to Paint • Drag Background to Rotate
+              Drag sphere to Paint • Drag background to Rotate
             </span>
           </div>
 
