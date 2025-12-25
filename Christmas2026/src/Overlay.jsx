@@ -52,9 +52,14 @@ export function Overlay({ isOpen, onClose, onSubmit, initialPos }) {
 
   // -- SUBMISSION LOGIC --
   const handleSubmit = async () => {
-    if (message.length < 1 || message.length > 1) {
-      alert("Message must be exactly 1 character.")
+    if (message.length < 1) {
+      alert("Message must be at least 1 character.")
       return
+    }
+
+    if (message.length > 50) {
+        alert("Message cannot be longer than 50 characters.")
+        return
     }
 
     setIsSubmitting(true)
@@ -87,7 +92,7 @@ export function Overlay({ isOpen, onClose, onSubmit, initialPos }) {
     <div style={{
       position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh',
       background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center',
-      zIndex: 20
+      zIndex: 2000000
     }}>
       <div style={{ background: 'white', padding: '20px', borderRadius: '15px', width: '300px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <h3 style={{ margin: 0, textAlign: 'center' }}>Design Ornament</h3>
@@ -119,7 +124,7 @@ export function Overlay({ isOpen, onClose, onSubmit, initialPos }) {
             type="text" 
             value={message} 
             onChange={(e) => setMessage(e.target.value)} 
-            maxLength={1} // Strict Limit
+            maxLength={50} // Strict Limit
             style={{ width: '100%', padding: '8px', fontSize: '1.2rem', textAlign: 'center' }}
             placeholder="?"
           />

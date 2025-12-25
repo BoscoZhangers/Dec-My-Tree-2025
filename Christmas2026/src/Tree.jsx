@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useMemo, useRef } from 'react' // Removed useState
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, Billboard, Line } from '@react-three/drei'
 import * as THREE from 'three'
-import { Ornament } from './Ornament' // Ensure you created this file from the previous step
+import { Ornament } from './Ornament' 
 
-// --- 1. NEON STAR TEXTURE HELPERS ---
+// --- HELPERS (Unchanged) ---
 function createGlowTexture() {
   const canvas = document.createElement('canvas')
   canvas.width = 128
@@ -73,27 +73,26 @@ function NeonStar({ size = 1, position = [0, 0, 0] }) {
   )
 }
 
-// --- 2. MAIN TREE COMPONENT ---
-export function Tree({ onTreeClick, ornaments = [] }) {
+// --- MAIN TREE COMPONENT ---
+export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
+  
+  // REMOVED LOCAL STATE (Lifted to App.jsx)
 
   return (
     <group dispose={null}>
       
-      {/* A. The Neon Star (Visual) */}
       <NeonStar size={7} position={[0, 225, 0]} />
 
-      {/* B. The Tree Model (Clickable) */}
       <primitive 
         object={scene} 
         onClick={(e) => {
           e.stopPropagation() 
-          // 1. Pass the click to App.jsx to open the panel
           onTreeClick(e.point) 
+          setActiveId(null)
         }}
       />
       
-      {/* C. The Ornaments (Logic) */}
       {ornaments.map((orn) => (
         <Ornament 
           key={orn.id}
@@ -101,6 +100,11 @@ export function Tree({ onTreeClick, ornaments = [] }) {
           color={orn.color}
           message={orn.message}
           textureData={orn.textureData}
+          
+          isActive={activeId === orn.id}
+          onActivate={() => {
+             setActiveId(activeId === orn.id ? null : orn.id)
+          }}
         />
       ))}
 
