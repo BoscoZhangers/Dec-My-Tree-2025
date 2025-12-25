@@ -374,7 +374,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
         <div className="right-panel">
           <div style={{ position: 'absolute', top: 10, width: '100%', textAlign: 'center', pointerEvents: 'none', zIndex: 10 }}>
             <span style={{ background: 'rgba(0,0,0,0.5)', padding: '5px 15px', borderRadius: '20px', color: '#aaa', fontSize: '0.7rem', fontFamily: 'inherit' }}>
-              Drag sphere to Paint • Drag background to Rotate
+              Drag Sphere to Paint • Drag Background to Rotate
             </span>
           </div>
 
