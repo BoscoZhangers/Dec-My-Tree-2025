@@ -131,7 +131,6 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
   )
 }
 
-
 // --- 2. MAIN OVERLAY ---
 export function Overlay({ isOpen, onClose, onSubmit }) {
   const [color, setColor] = useState("#FF0000")
@@ -190,62 +189,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
 
   const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 
-  // --- STYLING LOGIC ---
-  const overlayStyle = {
-    position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh',
-    background: 'rgba(0, 0, 0, 0.9)', backdropFilter: 'blur(8px)',
-    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999,
-    fontFamily: SYSTEM_FONT 
-  }
-
-  // START WITH YOUR ORIGINAL DESKTOP STYLE
-  const containerStyle = {
-    width: '900px', 
-    height: '600px', 
-    background: '#111', 
-    border: '1px solid #333', 
-    borderRadius: '20px', 
-    display: 'flex', 
-    overflow: 'hidden',
-    boxShadow: '0 50px 100px -20px rgba(0,0,0,0.8)',
-    flexDirection: 'row' // Default for Desktop
-  }
-
-  // OVERRIDE ONLY IF MOBILE
-  if (isMobile) {
-    containerStyle.width = '95vw'
-    containerStyle.height = '90vh'
-    containerStyle.flexDirection = 'column-reverse' // Put tools on bottom, sphere on top
-  }
-
-  // Left Panel (Tools)
-  const leftPanelStyle = {
-    width: '300px', 
-    padding: '30px', 
-    background: '#161616', 
-    borderRight: '1px solid #333', 
-    display: 'flex', 
-    flexDirection: 'column', 
-    gap: '25px',
-    overflowY: 'auto'
-  }
-  
-  if (isMobile) {
-    leftPanelStyle.width = '100%'
-    leftPanelStyle.height = '50%' // Half screen for tools
-    leftPanelStyle.borderRight = 'none'
-    leftPanelStyle.borderTop = '1px solid #333'
-    leftPanelStyle.padding = '15px'
-  }
-
-  // Right Panel (3D Sphere)
-  const rightPanelStyle = {
-    flex: 1, 
-    position: 'relative', 
-    background: 'radial-gradient(circle at center, #222, #000)',
-    touchAction: 'none' // Important for mobile drawing
-  }
-
+  // --- STYLES HELPER ---
   const toolButtonStyle = (isActive) => ({
     flex: 1, padding: '15px', cursor: 'pointer',
     background: isActive ? '#333' : '#1a1a1a',
@@ -254,7 +198,8 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
     borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem',
     textAlign: 'center', transition: 'all 0.2s',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontFamily: 'inherit' 
+    fontFamily: 'inherit',
+    minWidth: '40px'
   })
 
   const labelStyle = {
@@ -264,11 +209,8 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
   }
 
   const getPaletteItemStyle = (itemColor) => ({
-    width: '100%', 
-    aspectRatio: '1/1', 
-    borderRadius: '50%', 
-    background: itemColor,
-    cursor: 'pointer', 
+    width: '100%', aspectRatio: '1/1', borderRadius: '50%', 
+    background: itemColor, cursor: 'pointer', 
     border: color === itemColor ? '3px solid white' : '3px solid #333',
     transform: color === itemColor ? 'scale(1.15)' : 'scale(1)', 
     transition: 'transform 0.2s, border-color 0.2s'
@@ -277,15 +219,83 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
   if (!isOpen) return null
 
   return (
-    <div style={overlayStyle}>
-      <div style={containerStyle}>
-        
-        {/* LEFT PANEL */}
-        <div style={leftPanelStyle}>
+    <div style={{
+      position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh',
+      background: 'rgba(0, 0, 0, 0.9)', backdropFilter: 'blur(8px)',
+      display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999,
+      fontFamily: SYSTEM_FONT
+    }}>
+      
+      <style>{`
+        .overlay-container {
+          width: 900px;
+          height: 600px;
+          display: flex;
+          flex-direction: row;
+          background: #111;
+          border: 1px solid #333;
+          border-radius: 20px;
+          overflow: hidden;
+          box-shadow: 0 50px 100px -20px rgba(0,0,0,0.8);
+        }
+        .left-panel {
+          width: 300px;
+          padding: 30px;
+          background: #161616;
+          border-right: 1px solid #333;
+          display: flex;
+          flex-direction: column;
+          gap: 25px;
+          overflow-y: auto;
           
+          /* HIDE SCROLLBAR UI */
+          scrollbar-width: none;  /* Firefox */
+          -ms-overflow-style: none;  /* IE and Edge */
+        }
+        /* HIDE SCROLLBAR UI (Chrome, Safari) */
+        .left-panel::-webkit-scrollbar {
+          display: none;
+        }
+
+        .right-panel {
+          flex: 1;
+          position: relative;
+          background: radial-gradient(circle at center, #222, #000);
+          touch-action: none; 
+        }
+
+        /* MOBILE OVERRIDES */
+        @media (max-width: 800px) {
+          .overlay-container {
+            width: 95vw !important;
+            height: 90vh !important;
+            flex-direction: column-reverse !important; 
+          }
+          .left-panel {
+            /* 90% Width and centered */
+            width: 90% !important;
+            align-self: center !important;
+            border-radius: 20px 20px 0 0 !important;
+            
+            height: 50% !important;
+            border-right: none !important;
+            border-top: 1px solid #333;
+            padding: 20px !important;
+            gap: 15px !important;
+          }
+          .right-panel {
+            height: 50% !important;
+          }
+        }
+      `}</style>
+
+      <div className="overlay-container">
+        
+        {/* LEFT PANEL (TOOLS) */}
+        <div className="left-panel">
           <h2 style={{ margin: 0, color: 'white', fontSize: '1.4rem', fontFamily: 'inherit' }}> Ornament Studio</h2>
 
-          {/* 1. TOOLS */}
+          {/* TOOLS */}
           <div>
             <label style={labelStyle}>Tools</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '8px' }}>
@@ -296,96 +306,74 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
               <button 
                 title="Clear All" 
                 style={{ ...toolButtonStyle(false), color: '#ff4d4d', borderColor: '#442222' }} 
-                onClick={() => {
-                  if(window.confirm("Clear entire drawing?")) setClearTrigger(t => t + 1)
-                }}
+                onClick={() => { if(window.confirm("Clear entire drawing?")) setClearTrigger(t => t + 1) }}
               >
                 🗑️
               </button>
             </div>
           </div>
 
-          {/* 2. PALETTE */}
+          {/* PALETTE */}
           <div>
             <label style={labelStyle}>Palette 🎨</label>
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(4, 1fr)', 
-              gap: '15px', 
-              width: isMobile ? '100%' : '85%' // Make palette wider on mobile
+              /* Desktop: 4 cols. Mobile: 6 cols. */
+              gridTemplateColumns: isMobile ? 'repeat(6, 1fr)' : 'repeat(4, 1fr)', 
+              /* Desktop Gap: 15px (Reduced from 20). Mobile Gap: 10px */
+              gap: isMobile ? '10px' : '15px',
+              width: isMobile ? '100%' : '90%'
             }}>
               {PALETTE.map(hex => (
-                <div 
-                  key={hex}
-                  onClick={() => setColor(hex)}
-                  style={getPaletteItemStyle(hex)} 
-                />
+                <div key={hex} onClick={() => setColor(hex)} style={getPaletteItemStyle(hex)} />
               ))}
-
+              {/* Custom Color Picker */}
               <div style={{ 
-                width: '100%', aspectRatio: '1/1', 
-                position: 'relative', overflow: 'hidden', borderRadius: '50%', 
+                width: '100%', aspectRatio: '1/1', position: 'relative', overflow: 'hidden', borderRadius: '50%', 
                 background: 'conic-gradient(from 90deg, red, yellow, lime, aqua, blue, magenta, red)',
-                border: '3px solid #333',
-                transform: 'scale(1)', 
-                transition: 'transform 0.2s'
+                border: '3px solid #333', transform: 'scale(1)' 
               }}>
                 <input 
                   type="color" value={color} onChange={(e) => setColor(e.target.value)}
-                  style={{ 
-                    position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', 
-                    cursor: 'pointer', border: 'none', opacity: 0 
-                  }} 
+                  style={{ position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', cursor: 'pointer', opacity: 0 }} 
                 />
               </div>
             </div>
           </div>
 
-          {/* 3. MESSAGE & WARNING */}
-          <div style={{ marginTop: isMobile ? 'auto' : '30px' }}>
+          {/* MESSAGE */}
+          <div style={{ marginTop: 'auto' }}>
             <label style={labelStyle}>Message</label>
             <input 
               value={message} onChange={(e) => setMessage(e.target.value)} maxLength={50}
               placeholder="Write a wish..."
               style={{ 
-                width: isMobile ? '100%' : '92%', 
-                padding: '12px', background: '#222', border: '1px solid #333', 
-                color: 'white', borderRadius: '8px', outline: 'none',
-                fontFamily: 'inherit',
-                boxSizing: 'border-box'
+                width: '100%', padding: '12px', background: '#222', border: '1px solid #333', 
+                color: 'white', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box'
               }}
             />
-            {!isMobile && (
-              <p style={{ color: '#555', fontSize: '0.7rem', marginTop: '10px', fontStyle: 'italic', lineHeight: '1.4' }}>
+             <p style={{ color: '#555', fontSize: '0.7rem', marginTop: '10px', fontStyle: 'italic', lineHeight: '1.4' }}>
                 ⚠️ Messages are monitored. Inappropriate or harmful content will be removed.
-              </p>
-            )}
-            
-            {/* ON MOBILE, SHOW BUTTONS HERE */}
-            {isMobile && (
-               <div style={{ display: 'flex', gap: '15px', marginTop: '15px' }}>
-                <button onClick={onClose} 
-                    style={{ flex: 1, background: 'transparent', color: '#888', border: '1px solid #333', padding: '10px', borderRadius: '8px',
-                             cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit' }}>CANCEL</button>
-                <button 
-                  onClick={handleSubmit} disabled={isSubmitting}
-                  style={{ 
-                    flex: 1, background: 'white', color: 'black', border: 'none', borderRadius: '8px', 
-                    padding: '10px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer',
-                    opacity: isSubmitting ? 0.7 : 1, fontFamily: 'inherit'
-                  }}
-                >
-                  {isSubmitting ? 'HANGING...' : 'HANG IT'}
-                </button>
-              </div>
-            )}
+             </p>
+          </div>
+
+          {/* SUBMIT BUTTONS */}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+             <button onClick={onClose} 
+                style={{ flex: 1, background: '#333', color: '#ccc', border: 'none', padding: '15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                CANCEL
+             </button>
+             <button onClick={handleSubmit} disabled={isSubmitting}
+                style={{ flex: 2, background: 'white', color: 'black', border: 'none', padding: '15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', opacity: isSubmitting ? 0.7 : 1 }}>
+                {isSubmitting ? 'HANGING...' : 'HANG IT'}
+             </button>
           </div>
         </div>
 
-        {/* RIGHT PANEL */}
-        <div style={rightPanelStyle}>
-          <div style={{ position: 'absolute', top: 20, width: '100%', textAlign: 'center', pointerEvents: 'none', zIndex: 10 }}>
-            <span style={{ background: 'rgba(0,0,0,0.5)', padding: '5px 15px', borderRadius: '20px', color: '#aaa', fontSize: '0.8rem', fontFamily: 'inherit' }}>
+        {/* RIGHT PANEL (3D) */}
+        <div className="right-panel">
+          <div style={{ position: 'absolute', top: 10, width: '100%', textAlign: 'center', pointerEvents: 'none', zIndex: 10 }}>
+            <span style={{ background: 'rgba(0,0,0,0.5)', padding: '5px 15px', borderRadius: '20px', color: '#aaa', fontSize: '0.7rem', fontFamily: 'inherit' }}>
               Drag sphere to Paint • Drag background to Rotate
             </span>
           </div>
@@ -409,35 +397,10 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
               )}
             </Suspense>
             
-            <OrbitControls 
-              makeDefault 
-              minDistance={3} 
-              maxDistance={8} 
-              enabled={orbitEnabled} 
-            />
+            <OrbitControls makeDefault minDistance={3} maxDistance={8} enabled={orbitEnabled} />
           </Canvas>
-
-          {/* ON DESKTOP, SHOW BUTTONS HERE */}
-          {!isMobile && (
-            <div style={{ position: 'absolute', bottom: 30, right: 30, display: 'flex', gap: '15px' }}>
-              <button onClick={onClose} 
-                  style={{ background: 'transparent', color: '#888', border: 'none', 
-                           cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit' }}>CANCEL</button>
-              <button 
-                onClick={handleSubmit} disabled={isSubmitting}
-                style={{ 
-                  background: 'white', color: 'black', border: 'none', borderRadius: '50px', 
-                  padding: '12px 30px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer',
-                  opacity: isSubmitting ? 0.7 : 1,
-                  fontFamily: 'inherit'
-                }}
-              >
-                {isSubmitting ? 'HANGING...' : 'HANG IT'}
-              </button>
-            </div>
-          )}
-
         </div>
+
       </div>
     </div>
   )
