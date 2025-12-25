@@ -10,14 +10,13 @@ const PALETTE = [
   '#000000', '#FF69B4', '#00CED1'
 ]
 
-// --- 1. THE INTERACTIVE SPHERE ---
+// --- 1. THE INTERACTIVE SPHERE (Logic Unchanged) ---
 function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, clearTrigger }) {
   const meshRef = useRef()
   const textureRef = useRef()
   const [isDrawing, setIsDrawing] = useState(false)
   const lastUV = useRef(null)
 
-  // --- LISTENER: CLEAR CANVAS ---
   useEffect(() => {
     if (clearTrigger > 0 && canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d')
@@ -27,15 +26,13 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     }
   }, [clearTrigger, canvasRef])
 
-  // --- DRAWING LOGIC ---
   const draw = (uv) => {
     if (!canvasRef.current || !uv) return
     const ctx = canvasRef.current.getContext('2d')
     const width = canvasRef.current.width
     const height = canvasRef.current.height
 
-    // --- THE INVERSION FIX ---
-    // If the previous version was "completely inverted", we flip both axes here.
+    // --- YOUR INVERSION LOGIC ---
     const x = (1 - uv.x) * width
     const y = uv.y * height 
 
@@ -48,23 +45,17 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     ctx.lineWidth = brushSize
 
     if (lastUV.current) {
-      // Must calculate Last X/Y using the exact same logic
       const lastX = (1 - lastUV.current.x) * width
       const lastY = lastUV.current.y * height
-      
       const dx = Math.abs(x - lastX)
       const dy = Math.abs(y - lastY)
 
-      // --- SEAM PROTECTION ---
-      // If we jump across the texture wrap line (e.g. Right edge to Left edge),
-      // we STOP drawing to prevent a streak across the entire sphere.
       if (dx < 100 && dy < 100) {
         ctx.beginPath()
         ctx.moveTo(lastX, lastY)
         ctx.lineTo(x, y)
         ctx.stroke()
       } else {
-        // Just draw a dot if we jumped the seam
         ctx.beginPath()
         ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2)
         ctx.fillStyle = drawColor
@@ -89,15 +80,11 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     if (textureRef.current) textureRef.current.needsUpdate = true
   }
 
-  // --- POINTER HANDLERS ---
   const handlePointerDown = (e) => {
-    // We strictly use e.uv from the raycaster
     if (!e.uv) return
-
     e.stopPropagation() 
     setOrbitEnabled(false) 
     e.target.setPointerCapture(e.pointerId)
-
     if (tool === 'bucket') {
       fillBucket()
     } else {
@@ -136,7 +123,6 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
           ref={textureRef}
           attach="map"
           args={[canvasRef.current]}
-          // flipY must be false to align WebGL texture memory with HTML Canvas memory
           flipY={false} 
           minFilter={THREE.NearestFilter} 
           magFilter={THREE.NearestFilter}
@@ -145,7 +131,6 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     </mesh>
   )
 }
-
 
 // --- 2. MAIN OVERLAY ---
 export function Overlay({ isOpen, onClose, onSubmit }) {
@@ -196,19 +181,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
 
   const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 
-  const overlayStyle = {
-    position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh',
-    background: 'rgba(0, 0, 0, 0.9)', backdropFilter: 'blur(8px)',
-    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999,
-    fontFamily: SYSTEM_FONT 
-  }
-
-  const containerStyle = {
-    width: '900px', height: '600px', background: '#111', 
-    border: '1px solid #333', borderRadius: '20px', display: 'flex', overflow: 'hidden',
-    boxShadow: '0 50px 100px -20px rgba(0,0,0,0.8)'
-  }
-
+  // --- STYLES HELPER ---
   const toolButtonStyle = (isActive) => ({
     flex: 1, padding: '15px', cursor: 'pointer',
     background: isActive ? '#333' : '#1a1a1a',
@@ -217,7 +190,8 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
     borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem',
     textAlign: 'center', transition: 'all 0.2s',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontFamily: 'inherit' 
+    fontFamily: 'inherit',
+    minWidth: '40px' // Ensure touch target size
   })
 
   const labelStyle = {
@@ -226,13 +200,9 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
     fontFamily: 'inherit' 
   }
 
-  // Helper for Palette Item Style
   const getPaletteItemStyle = (itemColor) => ({
-    width: '100%', 
-    aspectRatio: '1/1', 
-    borderRadius: '50%', 
-    background: itemColor,
-    cursor: 'pointer', 
+    width: '100%', aspectRatio: '1/1', borderRadius: '50%', 
+    background: itemColor, cursor: 'pointer', 
     border: color === itemColor ? '3px solid white' : '3px solid #333',
     transform: color === itemColor ? 'scale(1.15)' : 'scale(1)', 
     transition: 'transform 0.2s, border-color 0.2s'
@@ -241,15 +211,73 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
   if (!isOpen) return null
 
   return (
-    <div style={overlayStyle}>
-      <div style={containerStyle}>
+    <div style={{
+      position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh',
+      background: 'rgba(0, 0, 0, 0.9)', backdropFilter: 'blur(8px)',
+      display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999,
+      fontFamily: SYSTEM_FONT
+    }}>
+      
+      {/* WE USE A <STYLE> TAG HERE TO HANDLE RESPONSIVENESS 
+          This switches the layout from Row to Column on small screens 
+      */}
+      <style>{`
+        .overlay-container {
+          width: 900px;
+          height: 600px;
+          display: flex;
+          flex-direction: row;
+          background: #111;
+          border: 1px solid #333;
+          border-radius: 20px;
+          overflow: hidden;
+          box-shadow: 0 50px 100px -20px rgba(0,0,0,0.8);
+        }
+        .left-panel {
+          width: 300px;
+          padding: 30px;
+          background: #161616;
+          border-right: 1px solid #333;
+          display: flex;
+          flex-direction: column;
+          gap: 25px;
+          overflow-y: auto;
+        }
+        .right-panel {
+          flex: 1;
+          position: relative;
+          background: radial-gradient(circle at center, #222, #000);
+          touch-action: none; /* PREVENTS SCROLLING ON MOBILE */
+        }
+
+        /* MOBILE OVERRIDES */
+        @media (max-width: 800px) {
+          .overlay-container {
+            width: 95vw !important;
+            height: 90vh !important;
+            flex-direction: column-reverse !important; /* Put tools on bottom, sphere on top */
+          }
+          .left-panel {
+            width: 100% !important;
+            height: 50% !important;
+            border-right: none !important;
+            border-top: 1px solid #333;
+            padding: 20px !important;
+            gap: 15px !important;
+          }
+          .right-panel {
+            height: 50% !important;
+          }
+        }
+      `}</style>
+
+      <div className="overlay-container">
         
-        {/* LEFT PANEL */}
-        <div style={{ width: '300px', padding: '30px', background: '#161616', borderRight: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '25px' }}>
-          
+        {/* LEFT PANEL (TOOLS) */}
+        <div className="left-panel">
           <h2 style={{ margin: 0, color: 'white', fontSize: '1.4rem', fontFamily: 'inherit' }}> Ornament Studio</h2>
 
-          {/* 1. TOOLS */}
+          {/* TOOLS */}
           <div>
             <label style={labelStyle}>Tools</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '8px' }}>
@@ -260,73 +288,64 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
               <button 
                 title="Clear All" 
                 style={{ ...toolButtonStyle(false), color: '#ff4d4d', borderColor: '#442222' }} 
-                onClick={() => {
-                  if(window.confirm("Clear entire drawing?")) setClearTrigger(t => t + 1)
-                }}
+                onClick={() => { if(window.confirm("Clear entire drawing?")) setClearTrigger(t => t + 1) }}
               >
                 🗑️
               </button>
             </div>
           </div>
 
-          {/* 2. PALETTE */}
+          {/* PALETTE */}
           <div>
             <label style={labelStyle}>Palette 🎨</label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(4, 1fr)', 
-              gap: '15px', 
-              width: '85%'
-            }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
               {PALETTE.map(hex => (
-                <div 
-                  key={hex}
-                  onClick={() => setColor(hex)}
-                  style={getPaletteItemStyle(hex)} 
-                />
+                <div key={hex} onClick={() => setColor(hex)} style={getPaletteItemStyle(hex)} />
               ))}
-
+              {/* Custom Color Picker */}
               <div style={{ 
-                width: '100%', aspectRatio: '1/1', 
-                position: 'relative', overflow: 'hidden', borderRadius: '50%', 
+                width: '100%', aspectRatio: '1/1', position: 'relative', overflow: 'hidden', borderRadius: '50%', 
                 background: 'conic-gradient(from 90deg, red, yellow, lime, aqua, blue, magenta, red)',
-                border: '3px solid #333',
-                transform: 'scale(1)', 
-                transition: 'transform 0.2s'
+                border: '3px solid #333', transform: 'scale(1)' 
               }}>
                 <input 
                   type="color" value={color} onChange={(e) => setColor(e.target.value)}
-                  style={{ 
-                    position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', 
-                    cursor: 'pointer', border: 'none', opacity: 0 
-                  }} 
+                  style={{ position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', cursor: 'pointer', opacity: 0 }} 
                 />
               </div>
             </div>
           </div>
 
-          {/* 3. MESSAGE & WARNING */}
-          <div style={{ marginTop: '30px' }}>
+          {/* MESSAGE */}
+          <div style={{ marginTop: 'auto' }}>
             <label style={labelStyle}>Message</label>
             <input 
               value={message} onChange={(e) => setMessage(e.target.value)} maxLength={50}
               placeholder="Write a wish..."
               style={{ 
-                width: '92%', padding: '12px', background: '#222', border: '1px solid #333', 
-                color: 'white', borderRadius: '8px', outline: 'none',
-                fontFamily: 'inherit' 
+                width: '100%', padding: '12px', background: '#222', border: '1px solid #333', 
+                color: 'white', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box'
               }}
             />
-            <p style={{ color: '#555', fontSize: '0.7rem', marginTop: '10px', fontStyle: 'italic', lineHeight: '1.4' }}>
-              ⚠️ Messages are monitored. Inappropriate or harmful content will be removed.
-            </p>
+          </div>
+
+          {/* SUBMIT BUTTONS (MOVED INSIDE LEFT PANEL FOR MOBILE LAYOUT) */}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+             <button onClick={onClose} 
+                style={{ flex: 1, background: '#333', color: '#ccc', border: 'none', padding: '15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                CANCEL
+             </button>
+             <button onClick={handleSubmit} disabled={isSubmitting}
+                style={{ flex: 2, background: 'white', color: 'black', border: 'none', padding: '15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', opacity: isSubmitting ? 0.7 : 1 }}>
+                {isSubmitting ? 'HANGING...' : 'HANG IT'}
+             </button>
           </div>
         </div>
 
-        {/* RIGHT PANEL */}
-        <div style={{ flex: 1, position: 'relative', background: 'radial-gradient(circle at center, #222, #000)' }}>
-          <div style={{ position: 'absolute', top: 20, width: '100%', textAlign: 'center', pointerEvents: 'none', zIndex: 10 }}>
-            <span style={{ background: 'rgba(0,0,0,0.5)', padding: '5px 15px', borderRadius: '20px', color: '#aaa', fontSize: '0.8rem', fontFamily: 'inherit' }}>
+        {/* RIGHT PANEL (3D) */}
+        <div className="right-panel">
+          <div style={{ position: 'absolute', top: 10, width: '100%', textAlign: 'center', pointerEvents: 'none', zIndex: 10 }}>
+            <span style={{ background: 'rgba(0,0,0,0.5)', padding: '5px 15px', borderRadius: '20px', color: '#aaa', fontSize: '0.7rem', fontFamily: 'inherit' }}>
               Drag sphere to Paint • Drag background to Rotate
             </span>
           </div>
@@ -350,32 +369,10 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
               )}
             </Suspense>
             
-            <OrbitControls 
-              makeDefault 
-              minDistance={3} 
-              maxDistance={8} 
-              enabled={orbitEnabled} 
-            />
+            <OrbitControls makeDefault minDistance={3} maxDistance={8} enabled={orbitEnabled} />
           </Canvas>
-
-          <div style={{ position: 'absolute', bottom: 30, right: 30, display: 'flex', gap: '15px' }}>
-            <button onClick={onClose} 
-                style={{ background: 'transparent', color: '#888', border: 'none', 
-                         cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit' }}>CANCEL</button>
-            <button 
-              onClick={handleSubmit} disabled={isSubmitting}
-              style={{ 
-                background: 'white', color: 'black', border: 'none', borderRadius: '50px', 
-                padding: '12px 30px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer',
-                opacity: isSubmitting ? 0.7 : 1,
-                fontFamily: 'inherit'
-              }}
-            >
-              {isSubmitting ? 'HANGING...' : 'HANG IT'}
-            </button>
-          </div>
-
         </div>
+
       </div>
     </div>
   )
