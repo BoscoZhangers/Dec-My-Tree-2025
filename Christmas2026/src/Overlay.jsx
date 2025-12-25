@@ -34,8 +34,10 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     const width = canvasRef.current.width
     const height = canvasRef.current.height
 
-    const x = uv.x * width
-    const y = (1 - uv.y) * height 
+    // --- THE INVERSION FIX ---
+    // If the previous version was "completely inverted", we flip both axes here.
+    const x = (1 - uv.x) * width
+    const y = uv.y * height 
 
     const drawColor = tool === 'eraser' ? '#FFFFFF' : color
     
@@ -46,22 +48,27 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     ctx.lineWidth = brushSize
 
     if (lastUV.current) {
-      const lastX = lastUV.current.x * width
-      const lastY = (1 - lastUV.current.y) * height
+      // Must calculate Last X/Y using the exact same logic
+      const lastX = (1 - lastUV.current.x) * width
+      const lastY = lastUV.current.y * height
       
-      const dx = Math.abs(lastX - x)
-      const dy = Math.abs(lastY - y)
+      const dx = Math.abs(x - lastX)
+      const dy = Math.abs(y - lastY)
 
-      if (dx > width / 2 || dy > height / 2) {
-        ctx.beginPath()
-        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2)
-        ctx.fillStyle = drawColor
-        ctx.fill()
-      } else {
+      // --- SEAM PROTECTION ---
+      // If we jump across the texture wrap line (e.g. Right edge to Left edge),
+      // we STOP drawing to prevent a streak across the entire sphere.
+      if (dx < 100 && dy < 100) {
         ctx.beginPath()
         ctx.moveTo(lastX, lastY)
         ctx.lineTo(x, y)
         ctx.stroke()
+      } else {
+        // Just draw a dot if we jumped the seam
+        ctx.beginPath()
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2)
+        ctx.fillStyle = drawColor
+        ctx.fill()
       }
     } else {
       ctx.beginPath()
@@ -84,6 +91,9 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
 
   // --- POINTER HANDLERS ---
   const handlePointerDown = (e) => {
+    // We strictly use e.uv from the raycaster
+    if (!e.uv) return
+
     e.stopPropagation() 
     setOrbitEnabled(false) 
     e.target.setPointerCapture(e.pointerId)
@@ -98,7 +108,7 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
   }
 
   const handlePointerMove = (e) => {
-    if (!isDrawing) return
+    if (!isDrawing || !e.uv) return
     e.stopPropagation()
     draw(e.uv)
   }
@@ -117,20 +127,19 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      rotation={[0, -Math.PI / 2, 0]} 
+      rotation={[0, 0, 0]} 
+      scale={[1, 1, 1]}   
     >
       <sphereGeometry args={[2, 64, 64]} />
-      <meshStandardMaterial roughness={0.2} metalness={0.1} side={THREE.DoubleSide}>
+      <meshStandardMaterial roughness={0.2} metalness={0.1} side={THREE.FrontSide}>
         <canvasTexture
           ref={textureRef}
           attach="map"
           args={[canvasRef.current]}
+          // flipY must be false to align WebGL texture memory with HTML Canvas memory
           flipY={false} 
           minFilter={THREE.NearestFilter} 
           magFilter={THREE.NearestFilter}
-          wrapS={THREE.RepeatWrapping}
-          repeat={[-1, 1]}
-          offset={[1, 0]}
         />
       </meshStandardMaterial>
     </mesh>
@@ -141,7 +150,7 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
 // --- 2. MAIN OVERLAY ---
 export function Overlay({ isOpen, onClose, onSubmit }) {
   const [color, setColor] = useState("#FF0000")
-  const [tool, setTool] = useState('brush') 
+  const [tool, setTool] = useState('bucket') 
   const [brushSize, setBrushSize] = useState(15)
   const [message, setMessage] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -297,7 +306,6 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
           </div>
 
           {/* 3. MESSAGE & WARNING */}
-          {/* Added marginTop: '30px' here to create extra space */}
           <div style={{ marginTop: '30px' }}>
             <label style={labelStyle}>Message</label>
             <input 

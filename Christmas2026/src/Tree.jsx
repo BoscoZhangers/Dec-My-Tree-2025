@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react' // Removed useState
+import React, { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, Billboard, Line } from '@react-three/drei'
 import * as THREE from 'three'
@@ -77,7 +77,40 @@ function NeonStar({ size = 1, position = [0, 0, 0] }) {
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
   
-  // REMOVED LOCAL STATE (Lifted to App.jsx)
+  // 1. STATE TRACKING
+  // Stores { x, y, time } from when the user first presses down
+  const clickStart = useRef({ x: 0, y: 0, time: 0 })
+
+  // 2. POINTER DOWN (Start tracking)
+  const handlePointerDown = (e) => {
+    e.stopPropagation()
+    clickStart.current = { 
+      x: e.clientX, 
+      y: e.clientY,
+      time: Date.now() 
+    }
+  }
+
+  // 3. POINTER UP (The Decision)
+  const handlePointerUp = (e) => {
+    e.stopPropagation()
+
+    // A. TIME CHECK
+    // If held longer than 200ms (0.2s), it is a "Long Press" or "Drag". IGNORE.
+    const duration = Date.now() - clickStart.current.time
+    if (duration > 200) return 
+
+    // B. DISTANCE CHECK
+    // If moved more than 10 pixels, it is a "Swipe" or "Orbit". IGNORE.
+    const dx = Math.abs(e.clientX - clickStart.current.x)
+    const dy = Math.abs(e.clientY - clickStart.current.y)
+    if (dx > 10 || dy > 10) return
+
+    // C. SUCCESS
+    // It was fast (<200ms) and stationary (<10px). Create Ornament.
+    onTreeClick(e.point) 
+    setActiveId(null)
+  }
 
   return (
     <group dispose={null}>
@@ -86,11 +119,8 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
 
       <primitive 
         object={scene} 
-        onClick={(e) => {
-          e.stopPropagation() 
-          onTreeClick(e.point) 
-          setActiveId(null)
-        }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
       />
       
       {ornaments.map((orn) => (
