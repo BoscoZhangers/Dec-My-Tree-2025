@@ -8,7 +8,7 @@ import { db } from './firebase'
 // ------------------------
 import { Tree } from './Tree' 
 import { Overlay } from './Overlay' 
-import { MusicPlayer } from './MusicPlayer' // <--- 1. IMPORT ADDED
+import { MusicPlayer } from './MusicPlayer' 
 
 // --- CONFIGURATION ---
 const TREE_POSITION = [0, -100, 0] 

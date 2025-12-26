@@ -4,7 +4,6 @@ export function MusicPlayer() {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef(null)
 
-  // Cleanup only (we don't create the audio here anymore)
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -17,7 +16,6 @@ export function MusicPlayer() {
   const togglePlay = () => {
     // 1. Lazy Initialization: Create audio ONLY when user clicks
     if (!audioRef.current) {
-      // References the file you just put in /public/music.mp3
       audioRef.current = new Audio('/music.mp3') 
       audioRef.current.loop = true
       audioRef.current.volume = 0.4
