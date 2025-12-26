@@ -331,20 +331,63 @@ function LightBulb({ position, index }) {
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
   const lastOrnLength = useRef(ornaments.length)
-  const introFinished = useRef(false) // Track if the first star-climb is done
-  
+  const introFinished = useRef(false)
+  const clickStartPos = useRef({ x: 0, y: 0 })
   const triggerRef = useRef(null)
+
+  const TREE_POSITION = [0, -100, 0] 
+  // Adjust this value based on your specific tree model's trunk height
+  const TRUNK_THRESHOLD = 35 
 
   const memoTree = useMemo(() => (
     <primitive 
       object={scene} 
-      onPointerUp={(e) => { e.stopPropagation(); onTreeClick(e.point) }} 
-    />
-  ), [scene, onTreeClick])
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        clickStartPos.current = { x: e.clientX, y: e.clientY }
+      }}
+      onPointerUp={(e) => {
+        e.stopPropagation();
+      
+        // 1. Drag Check
+        const moveDist = Math.sqrt(
+          Math.pow(e.clientX - clickStartPos.current.x, 2) + 
+          Math.pow(e.clientY - clickStartPos.current.y, 2)
+        );
+        if (moveDist > 10) return;
+      
+        // 2. Coordinate Conversion (Calculated earlier to check Y threshold)
+        const localHit = {
+          x: e.point.x - TREE_POSITION[0],
+          y: e.point.y - TREE_POSITION[1],
+          z: e.point.z - TREE_POSITION[2]
+        };
 
-  // EFFECT FOR ORNAMENTS ONLY
+        // 3. Trunk Threshold Check (Blocking by Y Dimension)
+        if (localHit.y < TRUNK_THRESHOLD) {
+          console.log(`Placement blocked: Hit too low on trunk (${localHit.y.toFixed(2)})`);
+          return;
+        }
+      
+        // 4. Proximity Check
+        const isTooClose = ornaments.some((orn) => {
+          const distY = Math.abs(localHit.y - orn.position[1]);
+          const distXZ = Math.sqrt(
+            Math.pow(localHit.x - orn.position[0], 2) + 
+            Math.pow(localHit.z - orn.position[2], 2)
+          );
+          return distY < MIN_V_SPACING && distXZ < MIN_H_SPACING;
+        });
+      
+        if (isTooClose) return;
+      
+        onTreeClick(localHit);
+        setActiveId(null);
+      }} 
+    />
+  ), [scene, ornaments, onTreeClick, setActiveId])
+
   useEffect(() => {
-    // Only trigger if an ornament is added AND the intro is already done
     if (ornaments.length > lastOrnLength.current && introFinished.current) {
         if (triggerRef.current) triggerRef.current()
     }
@@ -353,20 +396,21 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
 
   return (
     <group dispose={null}>
-      {/* Star calls triggerRef on flash. 
-         We also update introFinished.current inside the star's flash logic 
-      */}
       <NeonStar triggerRef={triggerRef} onFlash={() => { introFinished.current = true }} />
-      
       <CelebrationText triggerRef={triggerRef} />
-      
       <TreeLights />
       {memoTree}
       
       {ornaments.map((orn) => (
-        <Ornament key={orn.id} {...orn} isActive={activeId === orn.id} onActivate={() => setActiveId(activeId === orn.id ? null : orn.id)} />
+        <Ornament 
+          key={orn.id} 
+          {...orn} 
+          isActive={activeId === orn.id} 
+          onActivate={() => setActiveId(activeId === orn.id ? null : orn.id)} 
+        />
       ))}
     </group>
   )
 }
+
 useGLTF.preload('/tree.glb')
