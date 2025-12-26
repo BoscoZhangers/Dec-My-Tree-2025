@@ -14,7 +14,6 @@ export function MusicPlayer() {
   }, [])
 
   const togglePlay = () => {
-    // 1. Lazy Initialization: Create audio ONLY when user clicks
     if (!audioRef.current) {
       audioRef.current = new Audio('/music.mp3') 
       audioRef.current.loop = true
@@ -36,10 +35,13 @@ export function MusicPlayer() {
     <div 
       onClick={togglePlay}
       style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        zIndex: 1000,
+        /* --- MOBILE POSITIONING FIXES --- */
+        position: 'fixed', 
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 30px)', 
+        left: 'calc(env(safe-area-inset-left, 0px) + 20px)',
+        zIndex: 9999,
+        
+        /* --- RESTORED ORIGINAL STYLING --- */
         background: 'rgba(0,0,0,0.6)',
         backdropFilter: 'blur(5px)',
         border: '1px solid #333',
@@ -53,7 +55,8 @@ export function MusicPlayer() {
         fontSize: '0.9rem',
         fontFamily: 'sans-serif',
         userSelect: 'none',
-        touchAction: 'manipulation' 
+        touchAction: 'manipulation',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
       }}
     >
       <span style={{ fontSize: '1.2rem' }}>
