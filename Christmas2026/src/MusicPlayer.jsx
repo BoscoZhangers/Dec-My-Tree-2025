@@ -60,7 +60,7 @@ export function MusicPlayer() {
         {isPlaying ? '🔊' : '🔇'}
       </span>
       <span style={{ fontWeight: 'bold' }}>
-        {isPlaying ? 'Deck the Halls' : 'Play Music'}
+        {isPlaying ? 'Mute' : 'Play Music'}
       </span>
       
       {isPlaying && (
