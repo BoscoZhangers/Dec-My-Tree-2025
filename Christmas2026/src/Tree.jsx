@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react'
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, Billboard, Line, Text, Points } from '@react-three/drei'
 import * as THREE from 'three'
@@ -9,35 +9,35 @@ const MIN_V_SPACING = 7
 const MIN_H_SPACING = 7
 const TREE_Y_OFFSET = -100
 
-// --- SPARKLE EFFECT COMPONENT ---
-function SparkleBurst({ active, position }) { // Added position prop
+// --- SPARKLE EFFECT ---
+function SparkleBurst({ active, position }) {
   const pointsRef = useRef()
-  const count = 30 // Reduced count for individual character sparkles
+  const count = 30 
   const particles = useMemo(() => {
     const positions = new Float32Array(count * 3)
     const velocities = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
       positions.set([0, 0, 0], i * 3)
-      velocities.set([(Math.random() - 0.5) * 1, (Math.random() - 0.5) * 1, (Math.random() - 0.5) * 1], i * 3) // Reduced velocity
+      velocities.set([(Math.random() - 0.5) * 1, (Math.random() - 0.5) * 1, (Math.random() - 0.5) * 1], i * 3)
     }
     return { positions, velocities }
-  }, [active])
+  }, [])
 
   useFrame((state, delta) => {
     if (!active || !pointsRef.current) return
     const posArr = pointsRef.current.geometry.attributes.position.array
     for (let i = 0; i < count; i++) {
-      posArr[i * 3] += particles.velocities[i * 3] * 0.3 // Reduced speed
+      posArr[i * 3] += particles.velocities[i * 3] * 0.3 
       posArr[i * 3 + 1] += particles.velocities[i * 3 + 1] * 0.3
       posArr[i * 3 + 2] += particles.velocities[i * 3 + 2] * 0.3
     }
     pointsRef.current.geometry.attributes.position.needsUpdate = true
-    pointsRef.current.material.opacity -= delta * 0.8 // Fade out faster
+    pointsRef.current.material.opacity -= delta * 0.8 
   })
 
-  if (!active || !position) return null // Only render if active and position is provided
+  if (!active || !position) return null 
   return (
-    <Points ref={pointsRef} position={position}> {/* Use the passed position */}
+    <Points ref={pointsRef} position={position}>
       <pointsMaterial size={1.5} color="#FFD700" transparent blending={THREE.AdditiveBlending} depthWrite={false} />
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={particles.positions} itemSize={3} />
@@ -46,29 +46,31 @@ function SparkleBurst({ active, position }) { // Added position prop
   )
 }
 
-// --- CELEBRATION COMPONENT ---
-function CelebrationText({ visible }) {
+// --- CELEBRATION COMPONENT (STRICT TRIGGER) ---
+function CelebrationText({ triggerRef }) {
   const line1 = "Merry Christmas".split('')
   const line2 = "2025!!".split('')
-  
-  // Combine into one flat array for the animation state logic
   const characters = [...line1, ...line2]
   const charRefs = useRef([])
+  
+  // Start at -1 so it stays hidden until the star calls the function
+  const timer = useRef(-1) 
+  
   const [charStates, setCharStates] = useState(
     characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false }))
   )
-  const timer = useRef(0)
   const totalDuration = 2.0 
 
   useEffect(() => {
-    if (visible) {
-      timer.current = 0
+    // This is the ONLY way the animation starts
+    triggerRef.current = () => {
+      timer.current = 0 
       setCharStates(characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false })))
     }
-  }, [visible])
+  }, [triggerRef, characters])
 
   useFrame((state, delta) => {
-    if (!visible) return
+    if (timer.current === -1) return
     timer.current += delta
 
     setCharStates(prevStates => prevStates.map((charState, i) => {
@@ -83,59 +85,60 @@ function CelebrationText({ visible }) {
         }
       }
       if (showSparkle && timer.current > charAppearanceTime + 0.1) showSparkle = false
+      
+      // Fade out after 8 seconds
+      if (timer.current > 8) {
+        opacity = Math.max(0, opacity - delta * 2)
+        if (opacity <= 0 && i === characters.length - 1) timer.current = -1
+      }
+
       return { opacity, showSparkle, sparkled }
     }))
   })
 
-  if (!visible) return null
-
-  // Helper to render a row of characters
-  const renderLine = (charArray, startIndex, yPos, letterSpacing) => (
-    <group position={[0, yPos, 0]}>
-      {charArray.map((char, i) => {
-        const globalIndex = startIndex + i
-        // Center the line by calculating the total width
-        const xOffset = (i - charArray.length / 2) * letterSpacing
-        
-        return (
-          <group key={globalIndex} position={[xOffset, 0, 0]}>
-            <Text
-              ref={el => charRefs.current[globalIndex] = el}
-              fontSize={18}
-              color="#FFD700"
-              font="/GreatVibes-Regular.ttf"
-              anchorX="center"
-              anchorY="middle"
-            >
-              {char}
-              <meshStandardMaterial 
-                emissive="#FFD700" 
-                emissiveIntensity={3} 
-                toneMapped={false} 
-                transparent 
-                opacity={charStates[globalIndex].opacity} 
-              />
-            </Text>
-            {charStates[globalIndex].showSparkle && charRefs.current[globalIndex] && (
-              <SparkleBurst active={true} position={[0, 0, 0]} />
-            )}
-          </group>
-        )
-      })}
-    </group>
-  )
-
+  // We use the opacity of the first character to determine if we should even draw
+  // This is better for performance than mounting/unmounting
   return (
     <Billboard position={[0, 255, 0]} follow={true}>
-      {/* Line 1: Merry Christmas (yPos: 10, letterSpacing: 7 for tighter cursive) */}
-      {renderLine(line1, 0, 10, 7.5)}
-      
-      {/* Line 2: 2025!! (yPos: -10) */}
-      {renderLine(line2, line1.length, -10, 9)}
+      {renderLine(line1, 0, 10, 7.5, charStates, charRefs)}
+      {renderLine(line2, line1.length, -10, 9, charStates, charRefs)}
     </Billboard>
   )
 }
 
+// Updated Helper to pass states correctly
+const renderLine = (charArray, startIndex, yPos, letterSpacing, charStates, charRefs) => (
+  <group position={[0, yPos, 0]}>
+    {charArray.map((char, i) => {
+      const globalIndex = startIndex + i
+      const xOffset = (i - charArray.length / 2) * letterSpacing
+      return (
+        <group key={globalIndex} position={[xOffset, 0, 0]}>
+          <Text
+            ref={el => charRefs.current[globalIndex] = el}
+            fontSize={18}
+            color="#FFD700"
+            font="/GreatVibes-Regular.ttf"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {char}
+            <meshStandardMaterial 
+              emissive="#FFD700" 
+              emissiveIntensity={3} 
+              toneMapped={false} 
+              transparent 
+              opacity={charStates[globalIndex].opacity} 
+            />
+          </Text>
+          {charStates[globalIndex].showSparkle && (
+            <SparkleBurst active={true} position={[0, 0, 0]} />
+          )}
+        </group>
+      )
+    })}
+  </group>
+)
 
 // --- HELPERS ---
 function createGlowTexture() {
@@ -168,8 +171,23 @@ function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
   )
 }
 
-function NeonStar({ size = 7, position = [0, 225, 0] }) {
+// --- NEON STAR (STABILIZED) ---
+function NeonStar({ size = 7, triggerRef }) {
   const glowTexture = useMemo(() => createGlowTexture(), [])
+  const starRef = useRef()
+  const burstRef = useRef()
+  
+  const phaseRef = useRef('spiraling') 
+  const [burstOpacity, setBurstOpacity] = useState(0)
+  const shakeTime = useRef(0)
+  const hasTriggeredFlash = useRef(false)
+  const rotationAngle = useRef(0)
+
+  const targetY = 225
+  const startY = -80 
+  const spiralTurns = 12 
+  const radiusBase = 120 
+
   const { shape, points } = useMemo(() => {
     const s = new THREE.Shape()
     s.moveTo(0, 1)
@@ -179,106 +197,124 @@ function NeonStar({ size = 7, position = [0, 225, 0] }) {
       s.lineTo(Math.sin(angle) * radius, Math.cos(angle) * radius)
     }
     s.closePath()
-    const p = s.getPoints().map(v => [v.x, v.y, 0])
-    return { shape: s, points: p }
+    return { shape: s, points: s.getPoints().map(v => [v.x, v.y, 0]) }
   }, [])
 
+  useFrame((state, delta) => {
+    if (!starRef.current) return
+    const t = state.clock.getElapsedTime()
+
+    if (phaseRef.current === 'spiraling') {
+      const duration = 4.0 
+      const progress = Math.min(t / duration, 1)
+      const currentY = startY + (targetY - startY) * progress
+      const angle = progress * Math.PI * 2 * spiralTurns
+      const currentRadius = radiusBase * (1 - progress) 
+      starRef.current.position.set(Math.cos(angle) * currentRadius, currentY, Math.sin(angle) * currentRadius)
+      rotationAngle.current += delta * 5
+      starRef.current.rotation.z = rotationAngle.current
+      if (progress >= 1) phaseRef.current = 'spinning'
+    } 
+
+    if (phaseRef.current === 'spinning') {
+      starRef.current.position.set(0, targetY, 0)
+      rotationAngle.current = (rotationAngle.current + delta * 40) % (Math.PI * 2)
+      starRef.current.rotation.y = rotationAngle.current
+      if (t > 5.4) phaseRef.current = 'settled'
+    }
+
+    if (phaseRef.current === 'settled') {
+      starRef.current.position.set(0, targetY + Math.sin(t * 2) * 2, 0)
+      state.camera.getWorldQuaternion(starRef.current.quaternion)
+      
+      if (!hasTriggeredFlash.current) {
+        hasTriggeredFlash.current = true
+        setBurstOpacity(1.5) 
+        shakeTime.current = 0.4 
+        // ACTIVATE TEXT INSTANTLY
+        if (triggerRef.current) triggerRef.current()
+      }
+    }
+
+    if (burstOpacity > 0) {
+      setBurstOpacity(prev => Math.max(0, prev - delta * 2.0))
+      if (burstRef.current) burstRef.current.scale.addScalar(delta * 80)
+    }
+
+    if (shakeTime.current > 0) {
+      shakeTime.current -= delta
+      const intensity = shakeTime.current * 5 
+      state.camera.position.x += (Math.random() - 0.5) * intensity
+      state.camera.position.y += (Math.random() - 0.5) * intensity
+    }
+  })
+
   return (
-    <Billboard position={position}>
+    <group ref={starRef}>
+      {burstOpacity > 0 && (
+        <Billboard position={[0, 0, -1]}>
+          <mesh ref={burstRef} scale={[50, 50, 1]}>
+            <planeGeometry />
+            <meshBasicMaterial map={glowTexture} transparent opacity={Math.min(1, burstOpacity)} color="#FFFFFF" blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+        </Billboard>
+      )}
       <group scale={[size, size, size]}>
         <GlowRipple texture={glowTexture} color="#FFFF00" size={2} speed={0.5} offset={0.0} />
         <GlowRipple texture={glowTexture} color="#FFFF00" size={2} speed={0.5} offset={0.33} />
-        <GlowRipple texture={glowTexture} color="#FFFF00" size={2} speed={0.5} offset={0.66} />
-        <mesh position={[0,0,-0.05]} scale={[1.5, 1.5, 1.5]}>
+        {phaseRef.current === 'spiraling' && <SparkleBurst active={true} position={[0, 0, 0]} />}
+        <mesh position={[0, 0, -0.05]} scale={[1.5, 1.5, 1.5]}>
             <planeGeometry args={[1, 1]} />
             <meshBasicMaterial map={glowTexture} color="#FFFF00" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
         <mesh><shapeGeometry args={[shape]} /><meshBasicMaterial color="#FFFF00" transparent opacity={0.1} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
         <Line points={points} color="#FFFF00" lineWidth={5} closed transparent opacity={1} />
       </group>
-    </Billboard>
+    </group>
   )
 }
 
-// --- LIGHTS COMPONENT ---
-function TreeLights() {
-  const bulbCount = 45; 
-  const radiusBottom = 55; 
-  const height = 172.5; 
-  const yStart = 35; 
-  const turns = 6
-
+// --- TREE LIGHTS ---
+const TreeLights = React.memo(() => {
+  const bulbCount = 45; const radiusBottom = 55; const height = 172.5; const yStart = 35; const turns = 6
   const { curve } = useMemo(() => {
     const pts = []
-    
-    // 1. GRADUAL TUCK BOTTOM
     for (let i = -10; i < 0; i++) {
-        const t = i / 200
-        const y = yStart + (t * height)
-        const angle = t * Math.PI * 2 * turns
-        const r = radiusBottom * ((10 + i) / 10) 
+        const t = i / 200; const y = yStart + (t * height); const angle = t * Math.PI * 2 * turns; const r = radiusBottom * ((10 + i) / 10) 
         pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r))
     }
-
-    // 2. MAIN SPIRAL
     for (let i = 0; i <= 200; i++) {
-      const t = i / 200
-      const y = yStart + (t * height)
-      // 0.87 is the "sweet spot" - tight but remains on the outer branches
-      const r = radiusBottom * (1 - t * 0.87) 
-      const angle = t * Math.PI * 2 * turns
-      const x = Math.cos(angle) * r
-      const z = Math.sin(angle) * r
-      pts.push(new THREE.Vector3(x, y, z))
+      const t = i / 200; const y = yStart + (t * height); const r = radiusBottom * (1 - t * 0.87); const angle = t * Math.PI * 2 * turns
+      pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r))
     }
-
-    // 3. SUBTLE TOP HOOK
     const lastP = pts[pts.length - 1]
     pts.push(new THREE.Vector3(lastP.x * 0.8, lastP.y - 2, lastP.z * 0.8))
-
     return { curve: new THREE.CatmullRomCurve3(pts) }
   }, [radiusBottom, height, yStart, turns])
 
   return (
     <group>
-      <mesh>
-        <tubeGeometry args={[curve, 180, 0.5, 8, false]} />
-        <meshStandardMaterial color="#061a06" roughness={0.3} metalness={0.8} />
-      </mesh>
-      {/* Distribute bulbs - ending slightly before the 'hook' point */}
+      <mesh><tubeGeometry args={[curve, 180, 0.5, 8, false]} /><meshStandardMaterial color="#061a06" roughness={0.3} metalness={0.8} /></mesh>
       {Array.from({ length: bulbCount }).map((_, i) => (
         <LightBulb key={i} position={curve.getPointAt(0.05 + (i/bulbCount) * 0.92)} index={i} />
       ))}
     </group>
   )
-}
+})
 
 function LightBulb({ position, index }) {
   const meshRef = useRef(); const meshRef2 = useRef(); const glowRef = useRef(); const bulbGroupRef = useRef()
   const glowTex = useMemo(() => createGlowTexture(), [])
   const colorsA = ['#FF6A00', '#FF8C00', '#FFA500']; const colorsB = ['#CC7700', '#E69900', '#FFB300']
-  
   useFrame(({ clock }) => {
     if(!meshRef.current?.material || !meshRef2.current?.material) return
-    const time = clock.getElapsedTime()
-    const twinkle = Math.sin(time * 2.5 + index * 0.8)
+    const time = clock.getElapsedTime(); const twinkle = Math.sin(time * 2.5 + index * 0.8)
     const activeColor = new THREE.Color((index % 2 === 0) ? colorsA[index % 3] : colorsB[index % 3])
-    
     const bulbs = [meshRef.current.material, meshRef2.current.material]
-    bulbs.forEach(mat => { 
-      mat.color.copy(activeColor); mat.emissive.copy(activeColor); mat.emissiveIntensity = 1.0 + twinkle * 0.7 
-    })
-
-    if (glowRef.current) { 
-      glowRef.current.material.color.copy(activeColor); glowRef.current.material.opacity = 0.2 + (twinkle * 0.1) 
-    }
-
-    if (bulbGroupRef.current) {
-        bulbGroupRef.current.rotation.x = Math.sin(time * 1.2 + index) * 0.25
-        bulbGroupRef.current.rotation.z = Math.cos(time * 1.1 + index) * 0.15
-    }
+    bulbs.forEach(mat => { mat.color.copy(activeColor); mat.emissive.copy(activeColor); mat.emissiveIntensity = 1.0 + twinkle * 0.7 })
+    if (glowRef.current) { glowRef.current.material.color.copy(activeColor); glowRef.current.material.opacity = 0.2 + (twinkle * 0.1) }
+    if (bulbGroupRef.current) { bulbGroupRef.current.rotation.x = Math.sin(time * 1.2 + index) * 0.25; bulbGroupRef.current.rotation.z = Math.cos(time * 1.1 + index) * 0.15 }
   })
-
   return (
     <group position={position} ref={bulbGroupRef}>
       <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.5, 0.5, 1.2, 8]} /><meshStandardMaterial color="#020202" /></mesh>
@@ -291,60 +327,46 @@ function LightBulb({ position, index }) {
   )
 }
 
+// --- MAIN TREE COMPONENT ---
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
-  const clickStart = useRef({ x: 0, y: 0, time: 0 })
-  const [showCelebration, setShowCelebration] = useState(false)
   const lastOrnLength = useRef(ornaments.length)
+  const introFinished = useRef(false) // Track if the first star-climb is done
+  
+  const triggerRef = useRef(null)
 
+  const memoTree = useMemo(() => (
+    <primitive 
+      object={scene} 
+      onPointerUp={(e) => { e.stopPropagation(); onTreeClick(e.point) }} 
+    />
+  ), [scene, onTreeClick])
+
+  // EFFECT FOR ORNAMENTS ONLY
   useEffect(() => {
-    if (ornaments.length > lastOrnLength.current) {
-      setShowCelebration(true)
-      const timer = setTimeout(() => setShowCelebration(false), 6000)
-      return () => clearTimeout(timer)
+    // Only trigger if an ornament is added AND the intro is already done
+    if (ornaments.length > lastOrnLength.current && introFinished.current) {
+        if (triggerRef.current) triggerRef.current()
     }
     lastOrnLength.current = ornaments.length
   }, [ornaments.length])
 
-  const handlePointerDown = (e) => {
-    e.stopPropagation()
-    clickStart.current = { x: e.clientX, y: e.clientY, time: Date.now() }
-  }
-
-  const handlePointerUp = (e) => {
-    e.stopPropagation()
-    if (Date.now() - clickStart.current.time > 200) return 
-    const dx = Math.abs(e.clientX - clickStart.current.x), dy = Math.abs(e.clientY - clickStart.current.y)
-    if (dx > 10 || dy > 10) return
-
-    const hitName = e.object.name.toLowerCase(), matName = e.object.material.name ? e.object.material.name.toLowerCase() : ''
-    if (hitName.includes('trunk') || hitName.includes('bark') || matName.includes('wood')) return
-    
-    for (let orn of ornaments) {
-      const ornWorldY = orn.position[1] + TREE_Y_OFFSET
-      const distY = Math.abs(e.point.y - ornWorldY)
-      const distXZ = Math.sqrt(Math.pow(e.point.x - orn.position[0], 2) + Math.pow(e.point.z - orn.position[2], 2))
-      if (distY < MIN_V_SPACING && distXZ < MIN_H_SPACING) return 
-    }
-
-    onTreeClick(e.point) 
-    setActiveId(null)
-  }
-
   return (
     <group dispose={null}>
-      <NeonStar />
-      <CelebrationText visible={showCelebration} />
+      {/* Star calls triggerRef on flash. 
+         We also update introFinished.current inside the star's flash logic 
+      */}
+      <NeonStar triggerRef={triggerRef} onFlash={() => { introFinished.current = true }} />
+      
+      <CelebrationText triggerRef={triggerRef} />
+      
       <TreeLights />
-      <primitive object={scene} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} />
+      {memoTree}
+      
       {ornaments.map((orn) => (
-        <Ornament 
-          key={orn.id} position={orn.position} color={orn.color} message={orn.message} textureData={orn.textureData} 
-          isActive={activeId === orn.id} onActivate={() => setActiveId(activeId === orn.id ? null : orn.id)} 
-        />
+        <Ornament key={orn.id} {...orn} isActive={activeId === orn.id} onActivate={() => setActiveId(activeId === orn.id ? null : orn.id)} />
       ))}
     </group>
   )
 }
-
 useGLTF.preload('/tree.glb')
