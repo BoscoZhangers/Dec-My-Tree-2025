@@ -274,7 +274,7 @@ export default function App() {
       />
 
       <Canvas 
-        camera={{ position: [180, -50, 8], fov: 70 }}
+        camera={{ position: [180, 200, 250], fov: 70 }}
         onPointerMissed={() => setActiveId(null)}
       >
         <fog attach="fog" args={['#050505', 200, 900]} />
