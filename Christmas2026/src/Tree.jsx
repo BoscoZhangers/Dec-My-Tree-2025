@@ -46,14 +46,13 @@ function SparkleBurst({ active, position }) {
   )
 }
 
-// --- CELEBRATION COMPONENT (STRICT TRIGGER) ---
+// --- CELEBRATION COMPONENT ---
 function CelebrationText({ triggerRef }) {
   const line1 = "Merry Christmas".split('')
   const line2 = "2025!!".split('')
   const characters = [...line1, ...line2]
   const charRefs = useRef([])
   
-  // Start at -1 so it stays hidden until the star calls the function
   const timer = useRef(-1) 
   
   const [charStates, setCharStates] = useState(
@@ -62,7 +61,6 @@ function CelebrationText({ triggerRef }) {
   const totalDuration = 2.0 
 
   useEffect(() => {
-    // This is the ONLY way the animation starts
     triggerRef.current = () => {
       timer.current = 0 
       setCharStates(characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false })))
@@ -84,9 +82,10 @@ function CelebrationText({ triggerRef }) {
           sparkled = true
         }
       }
-      if (showSparkle && timer.current > charAppearanceTime + 0.1) showSparkle = false
+
+      // Sparkle stays alive long enough to be seen (1.5s)
+      if (showSparkle && timer.current > charAppearanceTime + 1.5) showSparkle = false
       
-      // Fade out after 8 seconds
       if (timer.current > 8) {
         opacity = Math.max(0, opacity - delta * 2)
         if (opacity <= 0 && i === characters.length - 1) timer.current = -1
@@ -96,49 +95,79 @@ function CelebrationText({ triggerRef }) {
     }))
   })
 
-  // We use the opacity of the first character to determine if we should even draw
-  // This is better for performance than mounting/unmounting
   return (
     <Billboard position={[0, 255, 0]} follow={true}>
-      {renderLine(line1, 0, 10, 7.5, charStates, charRefs)}
-      {renderLine(line2, line1.length, -10, 9, charStates, charRefs)}
+      {/* We pass the global start index to map correctly to charStates */}
+      {renderLine(line1, 0, 10, charStates, charRefs)}
+      {renderLine(line2, line1.length, -10, charStates, charRefs)}
     </Billboard>
   )
 }
 
-// Updated Helper to pass states correctly
-const renderLine = (charArray, startIndex, yPos, letterSpacing, charStates, charRefs) => (
-  <group position={[0, yPos, 0]}>
-    {charArray.map((char, i) => {
-      const globalIndex = startIndex + i
-      const xOffset = (i - charArray.length / 2) * letterSpacing
-      return (
-        <group key={globalIndex} position={[xOffset, 0, 0]}>
-          <Text
-            ref={el => charRefs.current[globalIndex] = el}
-            fontSize={18}
-            color="#FFD700"
-            font="/GreatVibes-Regular.ttf"
-            anchorX="center"
-            anchorY="middle"
-          >
-            {char}
-            <meshStandardMaterial 
-              emissive="#FFD700" 
-              emissiveIntensity={3} 
-              toneMapped={false} 
-              transparent 
-              opacity={charStates[globalIndex].opacity} 
-            />
-          </Text>
-          {charStates[globalIndex].showSparkle && (
-            <SparkleBurst active={true} position={[0, 0, 0]} />
-          )}
-        </group>
-      )
-    })}
-  </group>
-)
+// --- KERNING HELPER ---
+// This determines exactly how much space each letter needs
+const getCharWidth = (char) => {
+  const widths = {
+    'M': 20, // Huge width to clear the swash
+    'C': 14, // Wide capital
+    'r': 6,  // Tighten these up
+    'y': 6,
+    's': 5,
+    't': 5,
+    'i': 4,  // Very narrow
+    ' ': 8,  // Space
+    '2': 9, '0': 9, '5': 9, '!': 5
+  }
+  return widths[char] || 7 // Default width for everything else (e, h, m, a)
+}
+
+const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
+  // 1. Calculate the total width of the word so we can center it
+  const totalWidth = charArray.reduce((acc, char) => acc + getCharWidth(char), 0)
+  
+  // 2. Start drawing from the far left
+  let currentX = -totalWidth / 2 
+
+  return (
+    <group position={[0, yPos, 0]}>
+      {charArray.map((char, i) => {
+        const globalIndex = startIndex + i
+        const width = getCharWidth(char)
+        
+        // Position is current accumulator + half of this letter's width
+        const xPos = currentX + (width / 2)
+        
+        // Move the accumulator forward for the NEXT letter
+        currentX += width
+
+        return (
+          <group key={globalIndex} position={[xPos, 0, 0]}>
+            <Text
+              ref={el => charRefs.current[globalIndex] = el}
+              fontSize={18}
+              color="#FFD700"
+              font="/GreatVibes-Regular.ttf"
+              anchorX="center"
+              anchorY="middle"
+            >
+              {char}
+              <meshStandardMaterial 
+                emissive="#FFD700" 
+                emissiveIntensity={3} 
+                toneMapped={false} 
+                transparent 
+                opacity={charStates[globalIndex].opacity} 
+              />
+            </Text>
+            {charStates[globalIndex].showSparkle && (
+              <SparkleBurst active={true} position={[0, 0, 0]} />
+            )}
+          </group>
+        )
+      })}
+    </group>
+  )
+}
 
 // --- HELPERS ---
 function createGlowTexture() {
