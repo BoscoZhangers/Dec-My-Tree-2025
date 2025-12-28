@@ -39,6 +39,7 @@ const localHit = {
   y: e.point.y - TREE_POSITION[1], // Adjusting for offset
   z: e.point.z - TREE_POSITION[2]
 };
+```
 
 2. Interaction Heuristics (Drag vs. Click)
 The Challenge: Users attempting to rotate the camera (OrbitControls) would inadvertently trigger "click" events, placing unwanted ornaments.
