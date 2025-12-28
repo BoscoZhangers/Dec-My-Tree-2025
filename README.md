@@ -6,6 +6,8 @@ A real-time, interactive 3D web application allowing users to collaboratively de
 
 ![Project Screenshot](./screenshot.png)
 
+<br>
+
 ## 🛠 Tech Stack
 
 * **Frontend:** React, React Three Fiber (R3F), Drei
@@ -13,12 +15,16 @@ A real-time, interactive 3D web application allowing users to collaboratively de
 * **Backend/Database:** Firebase Firestore (Real-time NoSQL)
 * **Hosting:** Vercel
 
+<br>
+
 ## 🚀 Key Features
 
 * **Real-Time Collaboration:** User interactions (placing ornaments) are synced instantly across all connected clients via Firestore listeners.
 * **Interactive 3D Environment:** Full OrbitControls allowing users to rotate, zoom, and inspect the scene from any angle.
 * **Physics-Based Particle Effects:** Custom shader-like effects for star trails, text sparkles, and snow, managed via `useFrame` for 60FPS performance.
 * **Smart Collision Detection:** Prevents object overlapping and invalid placements (e.g., on the trunk) using local coordinate vector math.
+
+<br>
 
 ## 🧠 Engineering Challenges & Solutions
 
