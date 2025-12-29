@@ -5,10 +5,10 @@ import * as THREE from 'three'
 import { Ornament } from './Ornament' 
 
 // --- TUNING CONTROLS ---
-const TREE_BASE_Y = -100;     // Must match App.jsx
-const MIN_HEIGHT_CUTOFF = 20; // Blocks anything below this height (Roots/Floor/Bottom Trunk)
-const TRUNK_RADIUS = 5;       // Blocks anything too close to the center (The Trunk)
-const ORNAMENT_SPACING = 12;  // Minimum distance between ornaments
+const TREE_BASE_Y = -100;     
+const MIN_HEIGHT_CUTOFF = 20; 
+const TRUNK_RADIUS = 5;       
+const ORNAMENT_SPACING = 12;  
 
 // --- SPARKLE EFFECT ---
 function SparkleBurst({ active, position }) {
@@ -58,7 +58,6 @@ function CelebrationText({ triggerRef }) {
   const [charStates, setCharStates] = useState(
     characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false }))
   )
-  const totalDuration = 2.0 
 
   useEffect(() => {
     triggerRef.current = () => {
@@ -72,7 +71,7 @@ function CelebrationText({ triggerRef }) {
     timer.current += delta
 
     setCharStates(prevStates => prevStates.map((charState, i) => {
-      const charAppearanceTime = (totalDuration / characters.length) * i
+      const charAppearanceTime = (2.0 / characters.length) * i
       let { opacity, showSparkle, sparkled } = charState
 
       if (timer.current > 8) {
@@ -192,7 +191,11 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
   const rotationAngle = useRef(0)
 
   const targetY = 225
-  const startY = -80 
+  
+  // CHANGED: Raised startY from -80 to 25. 
+  // This places the start of the spiral just above the trunk (MIN_HEIGHT_CUTOFF is 20).
+  const startY = 25 
+  
   const spiralTurns = 12 
   const radiusBase = 120 
 
@@ -278,19 +281,36 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
 
 // --- TREE LIGHTS ---
 const TreeLights = React.memo(() => {
-  const bulbCount = 45; const radiusBottom = 55; const height = 172.5; const yStart = 35; const turns = 6
+  const bulbCount = 60; 
+  const radiusBottom = 55; 
+  const height = 172.5; 
+  const yStart = 35; 
+  const turns = 6
+
   const { curve } = useMemo(() => {
     const pts = []
+    // Bottom flare
     for (let i = -10; i < 0; i++) {
-        const t = i / 200; const y = yStart + (t * height); const angle = t * Math.PI * 2 * turns; const r = radiusBottom * ((10 + i) / 10) 
+        const t = i / 200; 
+        const y = yStart + (t * height); 
+        const angle = t * Math.PI * 2 * turns; 
+        const r = radiusBottom * ((10 + i) / 10) 
         pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r))
     }
+    
+    // Main Spiral
     for (let i = 0; i <= 200; i++) {
-      const t = i / 200; const y = yStart + (t * height); const r = radiusBottom * (1 - t * 0.87); const angle = t * Math.PI * 2 * turns
+      const t = i / 200; 
+      const y = yStart + (t * height); 
+      const r = radiusBottom * (1 - t * 0.82); 
+      const angle = t * Math.PI * 2 * turns
       pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r))
     }
+    
+    // The Tuck
     const lastP = pts[pts.length - 1]
     pts.push(new THREE.Vector3(lastP.x * 0.8, lastP.y - 2, lastP.z * 0.8))
+    
     return { curve: new THREE.CatmullRomCurve3(pts) }
   }, [radiusBottom, height, yStart, turns])
 
@@ -301,38 +321,96 @@ const TreeLights = React.memo(() => {
           <meshStandardMaterial color="#061a06" roughness={0.3} metalness={0.8} />
       </mesh>
       {Array.from({ length: bulbCount }).map((_, i) => (
-        <LightBulb key={i} position={curve.getPointAt(0.05 + (i/bulbCount) * 0.92)} index={i} />
+        <LightBulb 
+          key={i} 
+          position={curve.getPointAt(0.02 + (i / (bulbCount - 1)) * 0.98)} 
+          index={i} 
+          // CHANGED: Re-synced timing. 
+          // Since star starts at y=25 and lights start at y=35, the distance is very short.
+          // Lights now start turning on at 0.5s instead of 1.5s.
+          activationTime={0.5 + (i / bulbCount) * 3.5}
+        />
       ))}
     </group>
   )
 })
 
-function LightBulb({ position, index }) {
-  const meshRef = useRef(); const meshRef2 = useRef(); const glowRef = useRef(); const bulbGroupRef = useRef()
+function LightBulb({ position, index, activationTime }) {
+  const meshRef = useRef(); 
+  const meshRef2 = useRef(); 
+  const glowRef = useRef(); 
+  const bulbGroupRef = useRef()
+  
   const glowTex = useMemo(() => createGlowTexture(), [])
-  const colorsA = ['#FF6A00', '#FF8C00', '#FFA500']; const colorsB = ['#CC7700', '#E69900', '#FFB300']
+
+  const whiteColors = ['#FFFFFF', '#FFFACD', '#FAFAD2', '#FFF8DC', '#FFFFF0']; 
+  const darkColor = new THREE.Color('#111111'); 
+
+  const activeColor = useMemo(() => {
+    const hex = whiteColors[index % whiteColors.length];
+    return new THREE.Color(hex);
+  }, [index])
+
   useFrame(({ clock }) => {
     if(!meshRef.current?.material || !meshRef2.current?.material) return
-    const time = clock.getElapsedTime(); const twinkle = Math.sin(time * 2.5 + index * 0.8)
-    const activeColor = new THREE.Color((index % 2 === 0) ? colorsA[index % 3] : colorsB[index % 3])
+    const time = clock.getElapsedTime(); 
+
+    // --- ACTIVATION LOGIC ---
+    let wakeUp = (time - activationTime) * 2.0; 
+    wakeUp = THREE.MathUtils.clamp(wakeUp, 0, 1);
+
+    const twinkle = Math.sin(time * 2.5 + index * 0.8)
+    const currentColor = darkColor.clone().lerp(activeColor, wakeUp);
+    
     const bulbs = [meshRef.current.material, meshRef2.current.material]
-    bulbs.forEach(mat => { mat.color.copy(activeColor); mat.emissive.copy(activeColor); mat.emissiveIntensity = 1.0 + twinkle * 0.7 })
-    if (glowRef.current) { glowRef.current.material.color.copy(activeColor); glowRef.current.material.opacity = 0.2 + (twinkle * 0.1) }
-    if (bulbGroupRef.current) { bulbGroupRef.current.rotation.x = Math.sin(time * 1.2 + index) * 0.25; bulbGroupRef.current.rotation.z = Math.cos(time * 1.1 + index) * 0.15 }
+    
+    bulbs.forEach(mat => { 
+        mat.color.copy(currentColor); 
+        mat.emissive.copy(currentColor); 
+        mat.emissiveIntensity = (2.5 + twinkle * 1.0) * wakeUp; 
+    })
+    
+    if (glowRef.current) { 
+        glowRef.current.material.color.copy(currentColor); 
+        glowRef.current.material.opacity = (0.4 + (twinkle * 0.1)) * wakeUp; 
+    }
+    
+    if (bulbGroupRef.current) { 
+        bulbGroupRef.current.rotation.x = Math.sin(time * 1.5 + index) * 0.35; 
+        bulbGroupRef.current.rotation.z = Math.cos(time * 1.4 + index) * 0.25 
+    }
   })
+
   return (
     <group position={position} ref={bulbGroupRef}>
-      <mesh position={[0, 0, 0]} raycast={() => null}><cylinderGeometry args={[0.5, 0.5, 1.2, 8]} /><meshStandardMaterial color="#020202" /></mesh>
+      <mesh position={[0, 0, 0]} raycast={() => null}>
+          <cylinderGeometry args={[0.5, 0.5, 1.2, 8]} />
+          <meshStandardMaterial color="#020202" />
+      </mesh>
+      
       <group position={[0, -1.8, 0]} scale={[1.4, 1.4, 1.4]}>
-        <mesh position={[0, 0.8, 0]} raycast={() => null}><cylinderGeometry args={[0.35, 0.8, 1, 16]} /><meshStandardMaterial ref={meshRef} toneMapped={false} /></mesh>
-        <mesh ref={meshRef2} position={[0, 0.1, 0]} scale={[1, 1.1, 1]} raycast={() => null}><sphereGeometry args={[0.8, 16, 16]} /><meshStandardMaterial toneMapped={false} /></mesh>
+        <mesh ref={meshRef} position={[0, 0.8, 0]} raycast={() => null}>
+            <cylinderGeometry args={[0.35, 0.8, 1, 16]} />
+            <meshStandardMaterial toneMapped={false} />
+        </mesh>
+        
+        <mesh ref={meshRef2} position={[0, 0.1, 0]} scale={[1, 1.1, 1]} raycast={() => null}>
+            <sphereGeometry args={[0.8, 16, 16]} />
+            <meshStandardMaterial toneMapped={false} />
+        </mesh>
       </group>
-      <Billboard position={[0, -2.5, 0]}><mesh ref={glowRef} raycast={() => null}><planeGeometry args={[14, 14]} /><meshBasicMaterial map={glowTex} transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={0.4} /></mesh></Billboard>
+
+      <Billboard position={[0, -2.5, 0]}>
+          <mesh ref={glowRef} raycast={() => null}>
+              <planeGeometry args={[14, 14]} />
+              <meshBasicMaterial map={glowTex} transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={0.4} />
+          </mesh>
+      </Billboard>
     </group>
   )
 }
 
-// --- MAIN TREE COMPONENT (FINAL CLEAN LOGIC) ---
+// --- MAIN TREE COMPONENT ---
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
   const lastOrnLength = useRef(ornaments.length)
@@ -349,39 +427,22 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
       }}
       onPointerUp={(e) => {
         e.stopPropagation();
-      
-        // 1. Drag Check
         const moveDist = Math.sqrt(
           Math.pow(e.clientX - clickStartPos.current.x, 2) + 
           Math.pow(e.clientY - clickStartPos.current.y, 2)
         );
         if (moveDist > 10) return;
 
-        // 2. COORDINATE CONVERSION (Manual)
-        const localVec = {
-          x: e.point.x,
-          y: e.point.y - TREE_BASE_Y, 
-          z: e.point.z
+        const localVec = { 
+            x: e.point.x, 
+            y: e.point.y - TREE_BASE_Y, 
+            z: e.point.z 
         };
         const distFromCenter = Math.sqrt(localVec.x ** 2 + localVec.z ** 2);
 
-        // --- RULE 1: HEIGHT CUTOFF (Simpler is Better) ---
-        // If click is lower than MIN_HEIGHT_CUTOFF, ignore it.
-        // This handles floor, roots, and the very bottom stump.
-        if (localVec.y < MIN_HEIGHT_CUTOFF) {
-            console.log("Blocked: Too low");
-            return;
-        }
+        if (localVec.y < MIN_HEIGHT_CUTOFF) return; 
+        if (distFromCenter < TRUNK_RADIUS) return; 
 
-        // --- RULE 2: TRUNK POLE (Center Protection) ---
-        // If click is within the radius of the trunk, ignore it.
-        // This applies to the entire height of the tree.
-        if (distFromCenter < TRUNK_RADIUS) {
-            console.log("Blocked: Trunk");
-            return;
-        }
-
-        // --- RULE 3: PROXIMITY ---
         const isTooClose = ornaments.some((orn) => {
           const dx = localVec.x - orn.position[0];
           const dy = localVec.y - orn.position[1];
@@ -389,12 +450,7 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
           return Math.sqrt(dx*dx + dy*dy + dz*dz) < ORNAMENT_SPACING;
         });
       
-        if (isTooClose) {
-            console.log("Blocked: Too close to ornament");
-            return;
-        }
-      
-        // SUCCESS
+        if (isTooClose) return;
         onTreeClick(e.point);
         setActiveId(null);
       }} 
