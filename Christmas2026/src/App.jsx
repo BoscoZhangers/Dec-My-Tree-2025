@@ -1,6 +1,6 @@
 import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber' 
-import { OrbitControls, Environment, Stars, useGLTF } from '@react-three/drei'
+import { OrbitControls, Environment, Stars, useGLTF, Billboard, Text, useTexture, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 // --- FIREBASE IMPORTS ---
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
@@ -12,6 +12,120 @@ import { MusicPlayer } from './MusicPlayer'
 
 // --- CONFIGURATION ---
 const TREE_POSITION = [0, -100, 0] 
+
+// --- INSTRUCTION HINT COMPONENT ---
+function InstructionHint({ interacted }) {
+  const groupRef = useRef()
+  const [visible, setVisible] = useState(false)
+
+  // This hook causes Suspense. 
+  const iconTexture = useTexture('/click-icon.png')
+  
+  useFrame(({ clock }) => {
+    const time = clock.getElapsedTime()
+
+    // 1. TIMING CHECK
+    if (interacted) {
+      if (visible) setVisible(false)
+    } else if (time > 13.5) {
+      if (!visible) setVisible(true)
+    }
+
+    // 2. ANIMATION (Bobbing)
+    if (groupRef.current && visible) {
+      groupRef.current.position.y = 20 + Math.sin(time * 3) * 3
+    }
+  })
+
+  if (!visible) return null
+
+  return (
+    <group ref={groupRef} position={[160, 20, 0]} scale={0.7}>
+      <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
+        <group>
+          
+          {/* --- YELLOW ROUNDED BOX --- */}
+          <RoundedBox 
+            args={[45, 45, 1]} 
+            radius={6}         
+            smoothness={4}     
+            position={[-70, 0, -1]} 
+          >
+             <meshBasicMaterial color="#FFD700" toneMapped={false} />
+          </RoundedBox>
+
+          {/* --- THE ICON --- */}
+          <mesh position={[-70, 0, 0.6]}> 
+             <planeGeometry args={[30, 30]} />
+             <meshBasicMaterial 
+               map={iconTexture} 
+               transparent={true} 
+               opacity={1} 
+               toneMapped={false}
+             />
+          </mesh>
+
+          {/* --- THE TEXT --- */}
+          <Text
+            font="/Roboto-Regular.ttf" 
+            fontSize={15}
+            maxWidth={200}
+            lineHeight={1.2}
+            color="#FFD700"
+            textAlign="left"
+            anchorX="left"
+            anchorY="middle"
+            position={[-25, 0, 0]} 
+          >
+            Click on an empty spot to hang an ornament
+            <meshStandardMaterial emissive="#FFD700" emissiveIntensity={0.5} toneMapped={false} />
+          </Text>
+        </group>
+      </Billboard>
+    </group>
+  )
+}
+
+// --- CAMERA ANIMATOR COMPONENT ---
+function CameraAnimator({ controlsRef }) {
+  const targetPosition = new THREE.Vector3(-80, 0, 240); 
+  const targetLookAt = new THREE.Vector3(0, -20, 0); 
+
+  const initialState = useRef(null);
+
+  useFrame((state) => {
+    if (!controlsRef.current) return;
+
+    const time = state.clock.getElapsedTime();
+    
+    // Animation runs from 8s to 13s
+    const startTime = 8.0;
+    const duration = 5.0;
+
+    if (time < startTime) {
+      if (!initialState.current) {
+        initialState.current = {
+            pos: state.camera.position.clone(),
+            target: controlsRef.current.target.clone() 
+        };
+      }
+      return; 
+    }
+
+    let progress = (time - startTime) / duration;
+    progress = Math.min(Math.max(progress, 0), 1);
+    
+    const ease = progress * progress * (3 - 2 * progress);
+
+    if (progress < 1) {
+       state.camera.position.lerpVectors(initialState.current.pos, targetPosition, ease);
+       controlsRef.current.target.lerpVectors(initialState.current.target, targetLookAt, ease);
+       controlsRef.current.update();
+    }
+  });
+
+  return null;
+}
 
 // --- ADMIN PANEL ---
 function AdminPanel({ ornaments, onDelete }) {
@@ -90,7 +204,7 @@ function UnderTreePresents() {
           position={[pile.x, 0, pile.z]} 
           rotation={[0, pile.rotationY, 0]}
           scale={[pile.scale, pile.scale, pile.scale]}
-          raycast={() => null} // FIX: Ignore clicks
+          raycast={() => null} 
         />
       ))}
     </group>
@@ -192,7 +306,7 @@ function Snow({ count = 2000 }) {
   })
 
   return (
-    <points ref={points} raycast={() => null}> {/* FIX: Ignore clicks */}
+    <points ref={points} raycast={() => null}> 
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={particlesPosition.length / 3} array={particlesPosition} itemSize={3} />
       </bufferGeometry>
@@ -207,8 +321,10 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [tempPos, setTempPos] = useState(null)
   const [activeId, setActiveId] = useState(null)
+  const [hasInteracted, setHasInteracted] = useState(false)
 
-  // --- FIREBASE SYNC ---
+  const controlsRef = useRef()
+
   useEffect(() => {
     const q = query(collection(db, "ornaments"), orderBy("createdAt", "asc"))
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -221,7 +337,6 @@ export default function App() {
     return () => unsubscribe()
   }, [])
 
-  // --- FIREBASE WRITE ---
   const handleOrnamentSubmit = async (data) => {
     try {
       await addDoc(collection(db, "ornaments"), {
@@ -238,7 +353,6 @@ export default function App() {
     }
   }
 
-  // --- FIREBASE DELETE (Admin) ---
   const handleDelete = async (id) => {
     if (window.confirm("Delete this ornament?")) {
       await deleteDoc(doc(db, "ornaments", id))
@@ -256,8 +370,15 @@ export default function App() {
     setIsModalOpen(true)
   }
 
+  const handleUserInteraction = () => {
+    if (!hasInteracted) setHasInteracted(true)
+  }
+
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+    <div 
+      style={{ width: '100vw', height: '100vh', position: 'relative' }}
+      onPointerDown={handleUserInteraction}
+    >
       
       <MusicPlayer />
       
@@ -277,6 +398,8 @@ export default function App() {
         <fog attach="fog" args={['#050505', 200, 900]} />
         <color attach="background" args={['#050505']} />
         
+        <CameraAnimator controlsRef={controlsRef} />
+
         <Snow count={2000} />
         <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
         
@@ -285,6 +408,7 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <Environment preset="park" />
 
+        {/* --- SCENE SUSPENSE --- */}
         <Suspense fallback={null}>
           <group position={TREE_POSITION}> 
             <Tree 
@@ -298,10 +422,15 @@ export default function App() {
           <UnderTreePresents />
           <Ground />
           <BackgroundScenery />
+        </Suspense>
 
+        {/* --- CHANGED: SEPARATE SUSPENSE FOR THE HINT --- */}
+        <Suspense fallback={null}>
+            <InstructionHint interacted={hasInteracted} />
         </Suspense>
 
         <OrbitControls 
+          ref={controlsRef}
           makeDefault
           enablePan={false}
           enabled={!isModalOpen}

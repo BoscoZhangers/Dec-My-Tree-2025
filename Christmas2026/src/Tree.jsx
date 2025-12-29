@@ -74,7 +74,7 @@ function CelebrationText({ triggerRef }) {
       const charAppearanceTime = (2.0 / characters.length) * i
       let { opacity, showSparkle, sparkled } = charState
 
-      if (timer.current > 8) {
+      if (timer.current > 6) {
         opacity = Math.max(0, opacity - delta * 2)
         if (opacity <= 0 && i === characters.length - 1) {
             timer.current = -1
