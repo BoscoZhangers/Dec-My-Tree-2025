@@ -1,5 +1,6 @@
 import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber' 
+// CHANGED: Added useThree to imports
+import { Canvas, useFrame, useThree } from '@react-three/fiber' 
 import { OrbitControls, Environment, Stars, useGLTF, Billboard, Text, useTexture, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 // --- FIREBASE IMPORTS ---
@@ -17,9 +18,16 @@ const TREE_POSITION = [0, -100, 0]
 function InstructionHint({ interacted }) {
   const groupRef = useRef()
   const [visible, setVisible] = useState(false)
-
-  // This hook causes Suspense. 
   const iconTexture = useTexture('/click-icon.png')
+
+  // CHANGED: Responsive Logic
+  const { width } = useThree((state) => state.size)
+  const isMobile = width < 600
+
+  // Desktop: [-160, 20, 0] (Left side)
+  // Mobile:  [-60, 50, -30] (Closer to center, higher up, pulled slightly towards camera)
+  const position = isMobile ? [-60, 50, -30] : [-160, 20, 0]
+  const scale = isMobile ? 0.4 : 0.7
   
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime()
@@ -33,14 +41,18 @@ function InstructionHint({ interacted }) {
 
     // 2. ANIMATION (Bobbing)
     if (groupRef.current && visible) {
-      groupRef.current.position.y = 20 + Math.sin(time * 3) * 3
+      // Bob on the Y axis based on the responsive base Y
+      groupRef.current.position.y = position[1] + Math.sin(time * 3) * 3
+      // Enforce X and Z to ensure they update if window resizes
+      groupRef.current.position.x = position[0]
+      groupRef.current.position.z = position[2]
     }
   })
 
   if (!visible) return null
 
   return (
-    <group ref={groupRef} position={[160, 20, 0]} scale={0.7}>
+    <group ref={groupRef} position={position} scale={scale}>
       <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
         <group>
           
@@ -88,7 +100,8 @@ function InstructionHint({ interacted }) {
 
 // --- CAMERA ANIMATOR COMPONENT ---
 function CameraAnimator({ controlsRef }) {
-  const targetPosition = new THREE.Vector3(-80, 0, 240); 
+  // Target set to the "Back" (other side) of the tree
+  const targetPosition = new THREE.Vector3(80, 0, -240); 
   const targetLookAt = new THREE.Vector3(0, -20, 0); 
 
   const initialState = useRef(null);
@@ -392,7 +405,8 @@ export default function App() {
       />
 
       <Canvas 
-        camera={{ position: [180, 200, 250], fov: 70 }}
+        // Start on the opposite side of the tree
+        camera={{ position: [-180, 200, -250], fov: 70 }}
         onPointerMissed={() => setActiveId(null)}
       >
         <fog attach="fog" args={['#050505', 200, 900]} />
@@ -424,7 +438,7 @@ export default function App() {
           <BackgroundScenery />
         </Suspense>
 
-        {/* --- CHANGED: SEPARATE SUSPENSE FOR THE HINT --- */}
+        {/* --- INSTRUCTION HINT --- */}
         <Suspense fallback={null}>
             <InstructionHint interacted={hasInteracted} />
         </Suspense>
