@@ -51,17 +51,14 @@ function AdminPanel({ ornaments, onDelete }) {
   )
 }
 
-// --- REVERTED MOON COMPONENT (Original Sphere) ---
+// --- MOON COMPONENT ---
 function Moon() {
   return (
-    // Positioned far back (-600) and high up (400)
     <group position={[50, 400, -600]}>
-      {/* The main moon body */}
       <mesh>
         <sphereGeometry args={[30, 32, 32]} />
         <meshBasicMaterial color="#fffec4" /> 
       </mesh>
-       {/* A subtle glow halo around it */}
       <mesh scale={[1.2, 1.2, 1.2]}>
          <sphereGeometry args={[30, 32, 32]} />
          <meshBasicMaterial color="#ffffff" transparent opacity={0.15} depthWrite={false} />
@@ -93,6 +90,7 @@ function UnderTreePresents() {
           position={[pile.x, 0, pile.z]} 
           rotation={[0, pile.rotationY, 0]}
           scale={[pile.scale, pile.scale, pile.scale]}
+          raycast={() => null} // FIX: Ignore clicks
         />
       ))}
     </group>
@@ -194,7 +192,7 @@ function Snow({ count = 2000 }) {
   })
 
   return (
-    <points ref={points}>
+    <points ref={points} raycast={() => null}> {/* FIX: Ignore clicks */}
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={particlesPosition.length / 3} array={particlesPosition} itemSize={3} />
       </bufferGeometry>
@@ -261,7 +259,6 @@ export default function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       
-      {/* 2. MUSIC PLAYER COMPONENT ADDED */}
       <MusicPlayer />
       
       <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
@@ -281,7 +278,6 @@ export default function App() {
         <color attach="background" args={['#050505']} />
         
         <Snow count={2000} />
-        {/* Kept radius at 900 so stars stay behind the distant Moon (z=-600) */}
         <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
         
         <Moon />

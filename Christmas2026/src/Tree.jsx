@@ -1,13 +1,14 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
+import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, Billboard, Line, Text, Points } from '@react-three/drei'
 import * as THREE from 'three'
 import { Ornament } from './Ornament' 
 
-// --- CONFIGURATION ---
-const MIN_V_SPACING = 7
-const MIN_H_SPACING = 7
-const TREE_Y_OFFSET = -100
+// --- TUNING CONTROLS ---
+const TREE_BASE_Y = -100;     // Must match App.jsx
+const MIN_HEIGHT_CUTOFF = 20; // Blocks anything below this height (Roots/Floor/Bottom Trunk)
+const TRUNK_RADIUS = 5;       // Blocks anything too close to the center (The Trunk)
+const ORNAMENT_SPACING = 12;  // Minimum distance between ornaments
 
 // --- SPARKLE EFFECT ---
 function SparkleBurst({ active, position }) {
@@ -37,7 +38,7 @@ function SparkleBurst({ active, position }) {
 
   if (!active || !position) return null 
   return (
-    <Points ref={pointsRef} position={position}>
+    <Points ref={pointsRef} position={position} raycast={() => null}>
       <pointsMaterial size={1.5} color="#FFD700" transparent blending={THREE.AdditiveBlending} depthWrite={false} />
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={particles.positions} itemSize={3} />
@@ -47,13 +48,11 @@ function SparkleBurst({ active, position }) {
 }
 
 // --- CELEBRATION COMPONENT ---
-// --- CELEBRATION COMPONENT (FIXED) ---
 function CelebrationText({ triggerRef }) {
   const line1 = "Merry Christmas".split('')
   const line2 = "2025!!".split('')
   const characters = [...line1, ...line2]
   const charRefs = useRef([])
-  
   const timer = useRef(-1) 
   
   const [charStates, setCharStates] = useState(
@@ -64,7 +63,6 @@ function CelebrationText({ triggerRef }) {
   useEffect(() => {
     triggerRef.current = () => {
       timer.current = 0 
-      // Reset everything to invisible so it can "Re-Appear"
       setCharStates(characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false })))
     }
   }, [triggerRef, characters])
@@ -77,30 +75,20 @@ function CelebrationText({ triggerRef }) {
       const charAppearanceTime = (totalDuration / characters.length) * i
       let { opacity, showSparkle, sparkled } = charState
 
-      // --- LOGIC SPLIT: EITHER FADING IN OR FADING OUT ---
-      
-      // CASE 1: TIME TO FADE OUT (> 8 seconds)
       if (timer.current > 8) {
         opacity = Math.max(0, opacity - delta * 2)
-        
-        // If the LAST character is fully invisible, stop the timer completely
         if (opacity <= 0 && i === characters.length - 1) {
             timer.current = -1
         }
       } 
-      // CASE 2: TIME TO FADE IN (< 8 seconds)
       else if (timer.current >= charAppearanceTime) {
         opacity = Math.min(1, opacity + delta * 6)
-        
-        // Trigger sparkle only once when appearing
         if (opacity >= 0.8 && !sparkled) {
           showSparkle = true
           sparkled = true
         }
       }
 
-      // Sparkle Cleanup (Always runs)
-      // Keep sparkle alive for 1.5s so it's visible
       if (showSparkle && timer.current > charAppearanceTime + 1.5) {
         showSparkle = false
       }
@@ -117,28 +105,13 @@ function CelebrationText({ triggerRef }) {
   )
 }
 
-// --- KERNING HELPER ---
-// This determines exactly how much space each letter needs
 const getCharWidth = (char) => {
-  const widths = {
-    'M': 20, // Huge width to clear the swash
-    'C': 14, // Wide capital
-    'r': 6,  // Tighten these up
-    'y': 6,
-    's': 5,
-    't': 5,
-    'i': 4,  // Very narrow
-    ' ': 8,  // Space
-    '2': 9, '0': 9, '5': 9, '!': 5
-  }
-  return widths[char] || 7 // Default width for everything else (e, h, m, a)
+  const widths = { 'M': 20, 'C': 14, 'r': 6, 'y': 6, 's': 5, 't': 5, 'i': 4, ' ': 8, '2': 9, '0': 9, '5': 9, '!': 5 }
+  return widths[char] || 7 
 }
 
 const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
-  // 1. Calculate the total width of the word so we can center it
   const totalWidth = charArray.reduce((acc, char) => acc + getCharWidth(char), 0)
-  
-  // 2. Start drawing from the far left
   let currentX = -totalWidth / 2 
 
   return (
@@ -146,11 +119,7 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
       {charArray.map((char, i) => {
         const globalIndex = startIndex + i
         const width = getCharWidth(char)
-        
-        // Position is current accumulator + half of this letter's width
         const xPos = currentX + (width / 2)
-        
-        // Move the accumulator forward for the NEXT letter
         currentX += width
 
         return (
@@ -162,13 +131,11 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
               font="/GreatVibes-Regular.ttf"
               anchorX="center"
               anchorY="middle"
+              raycast={() => null} 
             >
               {char}
               <meshStandardMaterial 
-                emissive="#FFD700" 
-                emissiveIntensity={3} 
-                toneMapped={false} 
-                transparent 
+                emissive="#FFD700" emissiveIntensity={3} toneMapped={false} transparent 
                 opacity={charStates[globalIndex].opacity} 
               />
             </Text>
@@ -206,21 +173,18 @@ function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
     ref.current.material.opacity = 0.8 * (1 - Math.pow(t, 2))
   })
   return (
-    <mesh ref={ref} position={[0, 0, -0.1]}>
+    <mesh ref={ref} position={[0, 0, -0.1]} raycast={() => null}>
       <planeGeometry args={[1, 1]} />
       <meshBasicMaterial map={texture} color={color} transparent blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
     </mesh>
   )
 }
 
-// --- NEON STAR (STABILIZED) ---
-// --- NEON STAR (FIXED) ---
-// 1. ADD 'onFlash' TO PROPS
+// --- NEON STAR ---
 function NeonStar({ size = 7, triggerRef, onFlash }) { 
   const glowTexture = useMemo(() => createGlowTexture(), [])
   const starRef = useRef()
   const burstRef = useRef()
-  
   const phaseRef = useRef('spiraling') 
   const [burstOpacity, setBurstOpacity] = useState(0)
   const shakeTime = useRef(0)
@@ -247,7 +211,6 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
   useFrame((state, delta) => {
     if (!starRef.current) return
     const t = state.clock.getElapsedTime()
-
     if (phaseRef.current === 'spiraling') {
       const duration = 4.0 
       const progress = Math.min(t / duration, 1)
@@ -259,37 +222,27 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
       starRef.current.rotation.z = rotationAngle.current
       if (progress >= 1) phaseRef.current = 'spinning'
     } 
-
     if (phaseRef.current === 'spinning') {
       starRef.current.position.set(0, targetY, 0)
       rotationAngle.current = (rotationAngle.current + delta * 40) % (Math.PI * 2)
       starRef.current.rotation.y = rotationAngle.current
       if (t > 5.4) phaseRef.current = 'settled'
     }
-
     if (phaseRef.current === 'settled') {
       starRef.current.position.set(0, targetY + Math.sin(t * 2) * 2, 0)
       state.camera.getWorldQuaternion(starRef.current.quaternion)
-      
       if (!hasTriggeredFlash.current) {
         hasTriggeredFlash.current = true
         setBurstOpacity(1.5) 
         shakeTime.current = 0.4 
-        
-        // 1. TRIGGER THE TEXT IMMEDIATELY
         if (triggerRef.current) triggerRef.current()
-
-        // 2. TELL THE TREE THE INTRO IS DONE (CRITICAL FIX)
-        // This unlocks the "Ornament Trigger" logic in the parent component
         if (onFlash) onFlash() 
       }
     }
-
     if (burstOpacity > 0) {
       setBurstOpacity(prev => Math.max(0, prev - delta * 2.0))
       if (burstRef.current) burstRef.current.scale.addScalar(delta * 80)
     }
-
     if (shakeTime.current > 0) {
       shakeTime.current -= delta
       const intensity = shakeTime.current * 5 
@@ -298,12 +251,11 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
     }
   })
 
-  // ... (Rest of return statement is the same)
   return (
     <group ref={starRef}>
       {burstOpacity > 0 && (
         <Billboard position={[0, 0, -1]}>
-          <mesh ref={burstRef} scale={[50, 50, 1]}>
+          <mesh ref={burstRef} scale={[50, 50, 1]} raycast={() => null}>
             <planeGeometry />
             <meshBasicMaterial map={glowTexture} transparent opacity={Math.min(1, burstOpacity)} color="#FFFFFF" blending={THREE.AdditiveBlending} depthWrite={false} />
           </mesh>
@@ -313,11 +265,11 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
         <GlowRipple texture={glowTexture} color="#FFFF00" size={2} speed={0.5} offset={0.0} />
         <GlowRipple texture={glowTexture} color="#FFFF00" size={2} speed={0.5} offset={0.33} />
         {phaseRef.current === 'spiraling' && <SparkleBurst active={true} position={[0, 0, 0]} />}
-        <mesh position={[0, 0, -0.05]} scale={[1.5, 1.5, 1.5]}>
+        <mesh position={[0, 0, -0.05]} scale={[1.5, 1.5, 1.5]} raycast={() => null}>
             <planeGeometry args={[1, 1]} />
             <meshBasicMaterial map={glowTexture} color="#FFFF00" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
-        <mesh><shapeGeometry args={[shape]} /><meshBasicMaterial color="#FFFF00" transparent opacity={0.1} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+        <mesh raycast={() => null}><shapeGeometry args={[shape]} /><meshBasicMaterial color="#FFFF00" transparent opacity={0.1} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
         <Line points={points} color="#FFFF00" lineWidth={5} closed transparent opacity={1} />
       </group>
     </group>
@@ -344,7 +296,10 @@ const TreeLights = React.memo(() => {
 
   return (
     <group>
-      <mesh><tubeGeometry args={[curve, 180, 0.5, 8, false]} /><meshStandardMaterial color="#061a06" roughness={0.3} metalness={0.8} /></mesh>
+      <mesh raycast={() => null}>
+          <tubeGeometry args={[curve, 180, 0.5, 8, false]} />
+          <meshStandardMaterial color="#061a06" roughness={0.3} metalness={0.8} />
+      </mesh>
       {Array.from({ length: bulbCount }).map((_, i) => (
         <LightBulb key={i} position={curve.getPointAt(0.05 + (i/bulbCount) * 0.92)} index={i} />
       ))}
@@ -367,27 +322,23 @@ function LightBulb({ position, index }) {
   })
   return (
     <group position={position} ref={bulbGroupRef}>
-      <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.5, 0.5, 1.2, 8]} /><meshStandardMaterial color="#020202" /></mesh>
+      <mesh position={[0, 0, 0]} raycast={() => null}><cylinderGeometry args={[0.5, 0.5, 1.2, 8]} /><meshStandardMaterial color="#020202" /></mesh>
       <group position={[0, -1.8, 0]} scale={[1.4, 1.4, 1.4]}>
-        <mesh position={[0, 0.8, 0]}><cylinderGeometry args={[0.35, 0.8, 1, 16]} /><meshStandardMaterial ref={meshRef} toneMapped={false} /></mesh>
-        <mesh ref={meshRef2} position={[0, 0.1, 0]} scale={[1, 1.1, 1]}><sphereGeometry args={[0.8, 16, 16]} /><meshStandardMaterial toneMapped={false} /></mesh>
+        <mesh position={[0, 0.8, 0]} raycast={() => null}><cylinderGeometry args={[0.35, 0.8, 1, 16]} /><meshStandardMaterial ref={meshRef} toneMapped={false} /></mesh>
+        <mesh ref={meshRef2} position={[0, 0.1, 0]} scale={[1, 1.1, 1]} raycast={() => null}><sphereGeometry args={[0.8, 16, 16]} /><meshStandardMaterial toneMapped={false} /></mesh>
       </group>
-      <Billboard position={[0, -2.5, 0]}><mesh ref={glowRef}><planeGeometry args={[14, 14]} /><meshBasicMaterial map={glowTex} transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={0.4} /></mesh></Billboard>
+      <Billboard position={[0, -2.5, 0]}><mesh ref={glowRef} raycast={() => null}><planeGeometry args={[14, 14]} /><meshBasicMaterial map={glowTex} transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={0.4} /></mesh></Billboard>
     </group>
   )
 }
 
-// --- MAIN TREE COMPONENT ---
+// --- MAIN TREE COMPONENT (FINAL CLEAN LOGIC) ---
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
   const { scene } = useGLTF('/tree.glb')
   const lastOrnLength = useRef(ornaments.length)
   const introFinished = useRef(false)
   const clickStartPos = useRef({ x: 0, y: 0 })
   const triggerRef = useRef(null)
-
-  const TREE_POSITION = [0, -100, 0] 
-  // Adjust this value based on your specific tree model's trunk height
-  const TRUNK_THRESHOLD = 35 
 
   const memoTree = useMemo(() => (
     <primitive 
@@ -405,33 +356,46 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
           Math.pow(e.clientY - clickStartPos.current.y, 2)
         );
         if (moveDist > 10) return;
-      
-        // 2. Coordinate Conversion (Calculated earlier to check Y threshold)
-        const localHit = {
-          x: e.point.x - TREE_POSITION[0],
-          y: e.point.y - TREE_POSITION[1],
-          z: e.point.z - TREE_POSITION[2]
-        };
 
-        // 3. Trunk Threshold Check (Blocking by Y Dimension)
-        if (localHit.y < TRUNK_THRESHOLD) {
-          console.log(`Placement blocked: Hit too low on trunk (${localHit.y.toFixed(2)})`);
-          return;
+        // 2. COORDINATE CONVERSION (Manual)
+        const localVec = {
+          x: e.point.x,
+          y: e.point.y - TREE_BASE_Y, 
+          z: e.point.z
+        };
+        const distFromCenter = Math.sqrt(localVec.x ** 2 + localVec.z ** 2);
+
+        // --- RULE 1: HEIGHT CUTOFF (Simpler is Better) ---
+        // If click is lower than MIN_HEIGHT_CUTOFF, ignore it.
+        // This handles floor, roots, and the very bottom stump.
+        if (localVec.y < MIN_HEIGHT_CUTOFF) {
+            console.log("Blocked: Too low");
+            return;
         }
-      
-        // 4. Proximity Check
+
+        // --- RULE 2: TRUNK POLE (Center Protection) ---
+        // If click is within the radius of the trunk, ignore it.
+        // This applies to the entire height of the tree.
+        if (distFromCenter < TRUNK_RADIUS) {
+            console.log("Blocked: Trunk");
+            return;
+        }
+
+        // --- RULE 3: PROXIMITY ---
         const isTooClose = ornaments.some((orn) => {
-          const distY = Math.abs(localHit.y - orn.position[1]);
-          const distXZ = Math.sqrt(
-            Math.pow(localHit.x - orn.position[0], 2) + 
-            Math.pow(localHit.z - orn.position[2], 2)
-          );
-          return distY < MIN_V_SPACING && distXZ < MIN_H_SPACING;
+          const dx = localVec.x - orn.position[0];
+          const dy = localVec.y - orn.position[1];
+          const dz = localVec.z - orn.position[2];
+          return Math.sqrt(dx*dx + dy*dy + dz*dz) < ORNAMENT_SPACING;
         });
       
-        if (isTooClose) return;
+        if (isTooClose) {
+            console.log("Blocked: Too close to ornament");
+            return;
+        }
       
-        onTreeClick(localHit);
+        // SUCCESS
+        onTreeClick(e.point);
         setActiveId(null);
       }} 
     />
@@ -462,5 +426,3 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
     </group>
   )
 }
-
-useGLTF.preload('/tree.glb')
