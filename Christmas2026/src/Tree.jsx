@@ -47,6 +47,7 @@ function SparkleBurst({ active, position }) {
 }
 
 // --- CELEBRATION COMPONENT ---
+// --- CELEBRATION COMPONENT (FIXED) ---
 function CelebrationText({ triggerRef }) {
   const line1 = "Merry Christmas".split('')
   const line2 = "2025!!".split('')
@@ -63,6 +64,7 @@ function CelebrationText({ triggerRef }) {
   useEffect(() => {
     triggerRef.current = () => {
       timer.current = 0 
+      // Reset everything to invisible so it can "Re-Appear"
       setCharStates(characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false })))
     }
   }, [triggerRef, characters])
@@ -75,20 +77,32 @@ function CelebrationText({ triggerRef }) {
       const charAppearanceTime = (totalDuration / characters.length) * i
       let { opacity, showSparkle, sparkled } = charState
 
-      if (timer.current >= charAppearanceTime) {
+      // --- LOGIC SPLIT: EITHER FADING IN OR FADING OUT ---
+      
+      // CASE 1: TIME TO FADE OUT (> 8 seconds)
+      if (timer.current > 8) {
+        opacity = Math.max(0, opacity - delta * 2)
+        
+        // If the LAST character is fully invisible, stop the timer completely
+        if (opacity <= 0 && i === characters.length - 1) {
+            timer.current = -1
+        }
+      } 
+      // CASE 2: TIME TO FADE IN (< 8 seconds)
+      else if (timer.current >= charAppearanceTime) {
         opacity = Math.min(1, opacity + delta * 6)
+        
+        // Trigger sparkle only once when appearing
         if (opacity >= 0.8 && !sparkled) {
           showSparkle = true
           sparkled = true
         }
       }
 
-      // Sparkle stays alive long enough to be seen (1.5s)
-      if (showSparkle && timer.current > charAppearanceTime + 1.5) showSparkle = false
-      
-      if (timer.current > 8) {
-        opacity = Math.max(0, opacity - delta * 2)
-        if (opacity <= 0 && i === characters.length - 1) timer.current = -1
+      // Sparkle Cleanup (Always runs)
+      // Keep sparkle alive for 1.5s so it's visible
+      if (showSparkle && timer.current > charAppearanceTime + 1.5) {
+        showSparkle = false
       }
 
       return { opacity, showSparkle, sparkled }
@@ -97,7 +111,6 @@ function CelebrationText({ triggerRef }) {
 
   return (
     <Billboard position={[0, 255, 0]} follow={true}>
-      {/* We pass the global start index to map correctly to charStates */}
       {renderLine(line1, 0, 10, charStates, charRefs)}
       {renderLine(line2, line1.length, -10, charStates, charRefs)}
     </Billboard>
@@ -201,7 +214,9 @@ function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
 }
 
 // --- NEON STAR (STABILIZED) ---
-function NeonStar({ size = 7, triggerRef }) {
+// --- NEON STAR (FIXED) ---
+// 1. ADD 'onFlash' TO PROPS
+function NeonStar({ size = 7, triggerRef, onFlash }) { 
   const glowTexture = useMemo(() => createGlowTexture(), [])
   const starRef = useRef()
   const burstRef = useRef()
@@ -260,8 +275,13 @@ function NeonStar({ size = 7, triggerRef }) {
         hasTriggeredFlash.current = true
         setBurstOpacity(1.5) 
         shakeTime.current = 0.4 
-        // ACTIVATE TEXT INSTANTLY
+        
+        // 1. TRIGGER THE TEXT IMMEDIATELY
         if (triggerRef.current) triggerRef.current()
+
+        // 2. TELL THE TREE THE INTRO IS DONE (CRITICAL FIX)
+        // This unlocks the "Ornament Trigger" logic in the parent component
+        if (onFlash) onFlash() 
       }
     }
 
@@ -278,6 +298,7 @@ function NeonStar({ size = 7, triggerRef }) {
     }
   })
 
+  // ... (Rest of return statement is the same)
   return (
     <group ref={starRef}>
       {burstOpacity > 0 && (
