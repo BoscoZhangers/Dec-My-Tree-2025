@@ -6,7 +6,7 @@ import { Ornament } from './Ornament'
 
 // --- TUNING CONTROLS ---
 const TREE_BASE_Y = -100;     
-const MIN_HEIGHT_CUTOFF = 20; 
+const MIN_HEIGHT_CUTOFF = 25; 
 const TRUNK_RADIUS = 5;       
 const ORNAMENT_SPACING = 12;  
 
