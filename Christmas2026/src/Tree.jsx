@@ -93,12 +93,14 @@ function CelebrationText({ triggerRef, startEnabled }) {
       let { opacity, showSparkle, sparkled } = charState
 
       if (timer.current > 6) {
+        // Fade out logic
         opacity = Math.max(0, opacity - delta * 2)
         if (opacity <= 0 && i === characters.length - 1) {
             timer.current = -1
         }
       } 
       else if (timer.current >= charAppearanceTime) {
+        // Fade in logic
         opacity = Math.min(1, opacity + delta * 6)
         if (opacity >= 0.8 && !sparkled) {
           showSparkle = true
@@ -148,11 +150,22 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
               font="/GreatVibes-Regular.ttf"
               anchorX="center"
               anchorY="middle"
+              // --- CHANGED: GLOW LOGIC ---
+              // outlineWidth acts as the glow radius (tight to the letter)
+              outlineWidth={0.04} 
+              outlineColor="#FFD700"
+              // Sync outline opacity so the glow fades WITH the text
+              outlineOpacity={charStates[globalIndex].opacity}
               raycast={() => null} 
             >
               {char}
+              {/* High emissive intensity makes the core letter bright */}
               <meshStandardMaterial 
-                emissive="#FFD700" emissiveIntensity={3} toneMapped={false} transparent 
+                color="#FFD700"
+                emissive="#FFD700" 
+                emissiveIntensity={2} 
+                toneMapped={false} 
+                transparent 
                 opacity={charStates[globalIndex].opacity} 
               />
             </Text>
