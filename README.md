@@ -1,4 +1,6 @@
-## 3D Interactive Christmas Tree 2025 🎄✨
+<h1 align = "center">
+    Dec My Tree 2025
+</h1>
 
 **A real-time, global celebration where code meets Christmas spirit.**
 
