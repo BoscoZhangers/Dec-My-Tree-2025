@@ -6,9 +6,25 @@ import { Ornament } from './Ornament'
 
 // --- TUNING CONTROLS ---
 const TREE_BASE_Y = -100;     
-const MIN_HEIGHT_CUTOFF = 25; 
+const MIN_HEIGHT_CUTOFF = 40; 
 const TRUNK_RADIUS = 5;       
 const ORNAMENT_SPACING = 12;  
+
+// --- HELPER: LOCAL TIMER HOOK ---
+function useLocalTime(startEnabled) {
+  const startTime = useRef(null)
+  const [localTime, setLocalTime] = useState(0)
+
+  useFrame((state) => {
+    if (!startEnabled) return
+    const t = state.clock.getElapsedTime()
+    if (startTime.current === null) {
+      startTime.current = t
+    }
+    setLocalTime(t - startTime.current)
+  })
+  return { localTime, active: startEnabled && startTime.current !== null }
+}
 
 // --- SPARKLE EFFECT ---
 function SparkleBurst({ active, position }) {
@@ -48,13 +64,14 @@ function SparkleBurst({ active, position }) {
 }
 
 // --- CELEBRATION COMPONENT ---
-function CelebrationText({ triggerRef }) {
+function CelebrationText({ triggerRef, startEnabled }) {
   const line1 = "Merry Christmas".split('')
   const line2 = "2025!!".split('')
   const characters = [...line1, ...line2]
   const charRefs = useRef([])
   const timer = useRef(-1) 
   
+  const { localTime, active } = useLocalTime(startEnabled)
   const [charStates, setCharStates] = useState(
     characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false }))
   )
@@ -67,6 +84,7 @@ function CelebrationText({ triggerRef }) {
   }, [triggerRef, characters])
 
   useFrame((state, delta) => {
+    if (!active) return 
     if (timer.current === -1) return
     timer.current += delta
 
@@ -180,7 +198,7 @@ function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
 }
 
 // --- NEON STAR ---
-function NeonStar({ size = 7, triggerRef, onFlash }) { 
+function NeonStar({ size = 7, triggerRef, onFlash, startEnabled }) { 
   const glowTexture = useMemo(() => createGlowTexture(), [])
   const starRef = useRef()
   const burstRef = useRef()
@@ -190,12 +208,10 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
   const hasTriggeredFlash = useRef(false)
   const rotationAngle = useRef(0)
 
+  const { localTime, active } = useLocalTime(startEnabled)
+
   const targetY = 225
-  
-  // CHANGED: Raised startY from -80 to 25. 
-  // This places the start of the spiral just above the trunk (MIN_HEIGHT_CUTOFF is 20).
   const startY = 25 
-  
   const spiralTurns = 12 
   const radiusBase = 120 
 
@@ -212,8 +228,10 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
   }, [])
 
   useFrame((state, delta) => {
-    if (!starRef.current) return
-    const t = state.clock.getElapsedTime()
+    if (!starRef.current || !active) return
+    
+    const t = localTime 
+
     if (phaseRef.current === 'spiraling') {
       const duration = 4.0 
       const progress = Math.min(t / duration, 1)
@@ -255,7 +273,7 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
   })
 
   return (
-    <group ref={starRef}>
+    <group ref={starRef} visible={active}>
       {burstOpacity > 0 && (
         <Billboard position={[0, 0, -1]}>
           <mesh ref={burstRef} scale={[50, 50, 1]} raycast={() => null}>
@@ -280,7 +298,7 @@ function NeonStar({ size = 7, triggerRef, onFlash }) {
 }
 
 // --- TREE LIGHTS ---
-const TreeLights = React.memo(() => {
+const TreeLights = React.memo(({ startEnabled }) => {
   const bulbCount = 60; 
   const radiusBottom = 55; 
   const height = 172.5; 
@@ -289,7 +307,6 @@ const TreeLights = React.memo(() => {
 
   const { curve } = useMemo(() => {
     const pts = []
-    // Bottom flare
     for (let i = -10; i < 0; i++) {
         const t = i / 200; 
         const y = yStart + (t * height); 
@@ -297,8 +314,6 @@ const TreeLights = React.memo(() => {
         const r = radiusBottom * ((10 + i) / 10) 
         pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r))
     }
-    
-    // Main Spiral
     for (let i = 0; i <= 200; i++) {
       const t = i / 200; 
       const y = yStart + (t * height); 
@@ -306,11 +321,8 @@ const TreeLights = React.memo(() => {
       const angle = t * Math.PI * 2 * turns
       pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r))
     }
-    
-    // The Tuck
     const lastP = pts[pts.length - 1]
     pts.push(new THREE.Vector3(lastP.x * 0.8, lastP.y - 2, lastP.z * 0.8))
-    
     return { curve: new THREE.CatmullRomCurve3(pts) }
   }, [radiusBottom, height, yStart, turns])
 
@@ -325,23 +337,22 @@ const TreeLights = React.memo(() => {
           key={i} 
           position={curve.getPointAt(0.02 + (i / (bulbCount - 1)) * 0.98)} 
           index={i} 
-          // CHANGED: Re-synced timing. 
-          // Since star starts at y=25 and lights start at y=35, the distance is very short.
-          // Lights now start turning on at 0.5s instead of 1.5s.
           activationTime={0.5 + (i / bulbCount) * 3.5}
+          startEnabled={startEnabled}
         />
       ))}
     </group>
   )
 })
 
-function LightBulb({ position, index, activationTime }) {
+function LightBulb({ position, index, activationTime, startEnabled }) {
   const meshRef = useRef(); 
   const meshRef2 = useRef(); 
   const glowRef = useRef(); 
   const bulbGroupRef = useRef()
   
   const glowTex = useMemo(() => createGlowTexture(), [])
+  const { localTime, active } = useLocalTime(startEnabled)
 
   const whiteColors = ['#FFFFFF', '#FFFACD', '#FAFAD2', '#FFF8DC', '#FFFFF0']; 
   const darkColor = new THREE.Color('#111111'); 
@@ -351,9 +362,9 @@ function LightBulb({ position, index, activationTime }) {
     return new THREE.Color(hex);
   }, [index])
 
-  useFrame(({ clock }) => {
-    if(!meshRef.current?.material || !meshRef2.current?.material) return
-    const time = clock.getElapsedTime(); 
+  useFrame(() => {
+    if(!active || !meshRef.current?.material || !meshRef2.current?.material) return
+    const time = localTime; 
 
     // --- ACTIVATION LOGIC ---
     let wakeUp = (time - activationTime) * 2.0; 
@@ -411,7 +422,8 @@ function LightBulb({ position, index, activationTime }) {
 }
 
 // --- MAIN TREE COMPONENT ---
-export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
+// Named Export to match App.jsx import
+export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, startEnabled }) {
   const { scene } = useGLTF('/tree.glb')
   const lastOrnLength = useRef(ornaments.length)
   const introFinished = useRef(false)
@@ -466,9 +478,9 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId }) {
 
   return (
     <group dispose={null}>
-      <NeonStar triggerRef={triggerRef} onFlash={() => { introFinished.current = true }} />
-      <CelebrationText triggerRef={triggerRef} />
-      <TreeLights />
+      <NeonStar triggerRef={triggerRef} onFlash={() => { introFinished.current = true }} startEnabled={startEnabled} />
+      <CelebrationText triggerRef={triggerRef} startEnabled={startEnabled} />
+      <TreeLights startEnabled={startEnabled} />
       {memoTree}
       
       {ornaments.map((orn) => (

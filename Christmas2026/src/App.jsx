@@ -1,49 +1,36 @@
 import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber' 
-import { OrbitControls, Environment, Stars, useGLTF, Billboard, Text, useTexture, RoundedBox } from '@react-three/drei'
+import { OrbitControls, Environment, Stars, useGLTF, Billboard, Text, useTexture, RoundedBox, Loader, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
-// --- FIREBASE IMPORTS ---
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
 import { db } from './firebase' 
-// ------------------------
+// Import the Named Export from Tree.jsx
 import { Tree } from './Tree' 
 import { Overlay } from './Overlay' 
 import { MusicPlayer } from './MusicPlayer' 
 
-// --- CONFIGURATION ---
 const TREE_POSITION = [0, -100, 0] 
 
-// --- INSTRUCTION HINT COMPONENT ---
+// --- INSTRUCTION HINT ---
 function InstructionHint({ interacted }) {
   const groupRef = useRef()
   const [visible, setVisible] = useState(false)
   const iconTexture = useTexture('/click-icon.png')
 
-  // --- RESPONSIVE LOGIC ---
   const { width } = useThree((state) => state.size)
   const isMobile = width < 600
-
-  // Mobile: Centered horizontally (x=0), slightly above base (y=15), closer to trunk (z=-60)
-  // Desktop: Off to the side (x=-160)
   const position = isMobile ? [0, 15, -60] : [-160, 20, 0]
-  
-  // Mobile: Smaller scale (0.35)
   const scale = isMobile ? 0.35 : 0.7
   
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime()
-
-    // 1. TIMING CHECK
     if (interacted) {
       if (visible) setVisible(false)
     } else if (time > 13.5) {
       if (!visible) setVisible(true)
     }
-
-    // 2. ANIMATION (Bobbing)
     if (groupRef.current && visible) {
       groupRef.current.position.y = position[1] + Math.sin(time * 3) * 3
-      // Enforce X/Z for resizing consistency
       groupRef.current.position.x = position[0]
       groupRef.current.position.z = position[2]
     }
@@ -55,40 +42,14 @@ function InstructionHint({ interacted }) {
     <group ref={groupRef} position={position} scale={scale}>
       <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
         <group>
-          
-          {/* --- YELLOW ROUNDED BOX --- */}
-          <RoundedBox 
-            args={[42, 42, 1]} 
-            radius={6}         
-            smoothness={4}     
-            position={[-70, 0, -1]} 
-          >
+          <RoundedBox args={[42, 42, 1]} radius={6} smoothness={4} position={[-70, 0, -1]}>
              <meshBasicMaterial color="#FFD700" toneMapped={false} />
           </RoundedBox>
-
-          {/* --- THE ICON --- */}
           <mesh position={[-70, 0, 0.6]}> 
              <planeGeometry args={[28, 28]} /> 
-             <meshBasicMaterial 
-               map={iconTexture} 
-               transparent={true} 
-               opacity={1} 
-               toneMapped={false}
-             />
+             <meshBasicMaterial map={iconTexture} transparent opacity={1} toneMapped={false} />
           </mesh>
-
-          {/* --- THE TEXT --- */}
-          <Text
-            font="/Roboto-Regular.ttf" 
-            fontSize={15}
-            maxWidth={180} 
-            lineHeight={1.2}
-            color="#FFD700"
-            textAlign="left"
-            anchorX="left"
-            anchorY="middle"
-            position={[-25, 0, 0]} 
-          >
+          <Text font="/Roboto-Regular.ttf" fontSize={15} maxWidth={180} lineHeight={1.2} color="#FFD700" textAlign="left" anchorX="left" anchorY="middle" position={[-25, 0, 0]}>
             Click an empty spot to hang an ornament
             <meshStandardMaterial emissive="#FFD700" emissiveIntensity={0.5} toneMapped={false} />
           </Text>
@@ -98,9 +59,8 @@ function InstructionHint({ interacted }) {
   )
 }
 
-// --- CAMERA ANIMATOR COMPONENT ---
-// CHANGED: Accepted onFinish prop to unlock screen
-function CameraAnimator({ controlsRef, onFinish }) {
+// --- CAMERA ANIMATOR ---
+function CameraAnimator({ controlsRef, onFinish, isReady }) {
   const { width } = useThree((state) => state.size)
   const isMobile = width < 600
 
@@ -112,17 +72,23 @@ function CameraAnimator({ controlsRef, onFinish }) {
 
   const targetLookAt = new THREE.Vector3(0, -20, 0); 
   const initialState = useRef(null);
-  const hasFinishedRef = useRef(false); // Track if we've notified parent
+  const hasFinishedRef = useRef(false);
+  const timeOffset = useRef(null);
 
   useFrame((state) => {
-    if (!controlsRef.current) return;
+    if (!controlsRef.current || !isReady) return;
 
-    const time = state.clock.getElapsedTime();
-    const startTime = 8.0;
+    if (timeOffset.current === null) {
+        timeOffset.current = state.clock.getElapsedTime();
+    }
+
+    const localTime = state.clock.getElapsedTime() - timeOffset.current;
+    
+    // Animation starts at 8s relative to load finish
+    const startTime = 8.0; 
     const duration = 5.0;
 
-    // 1. Before Animation starts
-    if (time < startTime) {
+    if (localTime < startTime) {
       if (!initialState.current) {
         initialState.current = {
             pos: state.camera.position.clone(),
@@ -132,18 +98,16 @@ function CameraAnimator({ controlsRef, onFinish }) {
       return; 
     }
 
-    let progress = (time - startTime) / duration;
+    let progress = (localTime - startTime) / duration;
 
-    // 2. Animation Finished?
     if (progress >= 1) {
       if (!hasFinishedRef.current) {
         hasFinishedRef.current = true;
-        if (onFinish) onFinish(); // UNLOCK HERE
+        if (onFinish) onFinish(); 
       }
       return;
     }
 
-    // 3. Animating
     const ease = progress * progress * (3 - 2 * progress);
     
     state.camera.position.lerpVectors(initialState.current.pos, targetPosition, ease);
@@ -154,91 +118,54 @@ function CameraAnimator({ controlsRef, onFinish }) {
   return null;
 }
 
-// --- ADMIN PANEL ---
+// --- STANDARD COMPONENTS ---
 function AdminPanel({ ornaments, onDelete }) {
   const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true'
-
   if (!isAdmin) return null
-
   return (
-    <div style={{
-      position: 'absolute', top: 20, right: 20, width: '300px', maxHeight: '80vh',
-      overflowY: 'auto', background: 'rgba(0,0,0,0.8)', color: 'white',
-      padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #444'
-    }}>
+    <div style={{ position: 'absolute', top: 20, right: 20, width: '300px', maxHeight: '80vh', overflowY: 'auto', background: 'rgba(0,0,0,0.8)', color: 'white', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #444' }}>
       <h3 style={{ marginTop: 0 }}>🎄 Admin Moderation</h3>
       <p style={{ fontSize: '12px', color: '#aaa' }}>{ornaments.length} ornaments active</p>
-      
       {ornaments.map((orn) => (
-        <div key={orn.id} style={{ 
-          borderBottom: '1px solid #333', padding: '10px 0',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-        }}>
+        <div key={orn.id} style={{ borderBottom: '1px solid #333', padding: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{orn.message || "No message"}</div>
-            <div style={{ fontSize: '10px', color: '#888' }}>
-              Color: <span style={{ color: orn.color }}>●</span> {orn.id.slice(0, 8)}...
-            </div>
+            <div style={{ fontSize: '10px', color: '#888' }}>Color: <span style={{ color: orn.color }}>●</span> {orn.id.slice(0, 8)}...</div>
           </div>
-          <button 
-            onClick={() => onDelete(orn.id)}
-            style={{ background: '#ff4444', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Del
-          </button>
+          <button onClick={() => onDelete(orn.id)} style={{ background: '#ff4444', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Del</button>
         </div>
       ))}
     </div>
   )
 }
 
-// --- MOON COMPONENT ---
 function Moon() {
   return (
     <group position={[50, 400, -600]}>
-      <mesh>
-        <sphereGeometry args={[30, 32, 32]} />
-        <meshBasicMaterial color="#fffec4" /> 
-      </mesh>
-      <mesh scale={[1.2, 1.2, 1.2]}>
-         <sphereGeometry args={[30, 32, 32]} />
-         <meshBasicMaterial color="#ffffff" transparent opacity={0.15} depthWrite={false} />
-      </mesh>
+      <mesh><sphereGeometry args={[30, 32, 32]} /><meshBasicMaterial color="#fffec4" /></mesh>
+      <mesh scale={[1.2, 1.2, 1.2]}><sphereGeometry args={[30, 32, 32]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.15} depthWrite={false} /></mesh>
     </group>
   )
 }
 
-// --- PRESENTS COMPONENT ---
 function UnderTreePresents() {
   const { scene } = useGLTF('/presents.glb')
   const piles = useMemo(() => {
     return new Array(5).fill(0).map((_, i) => {
       const angle = (i / 5) * Math.PI * 2 + (Math.random() * 0.5)
       const radius = 25 + Math.random() * 10
-      const x = Math.cos(angle) * radius
-      const z = Math.sin(angle) * radius
-      const rotationY = Math.random() * Math.PI * 2
-      const scale = 15 + Math.random() * 5 
-      return { x, z, rotationY, scale }
+      return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, rotationY: Math.random() * Math.PI * 2, scale: 15 + Math.random() * 5 }
     })
   }, [])
-
   return (
     <group position={TREE_POSITION}>
       {piles.map((pile, i) => (
-        <primitive 
-          key={i} object={scene.clone()} 
-          position={[pile.x, 0, pile.z]} 
-          rotation={[0, pile.rotationY, 0]}
-          scale={[pile.scale, pile.scale, pile.scale]}
-          raycast={() => null} 
-        />
+        <primitive key={i} object={scene.clone()} position={[pile.x, 0, pile.z]} rotation={[0, pile.rotationY, 0]} scale={[pile.scale, pile.scale, pile.scale]} raycast={() => null} />
       ))}
     </group>
   )
 }
 
-// --- BACKGROUND COMPONENTS ---
 function Ground() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -102, 0]} receiveShadow>
@@ -254,35 +181,21 @@ function BackgroundScenery({ count = 40 }) {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2
       const radius = 300 + Math.random() * 300
-      const x = Math.cos(angle) * radius
-      const z = Math.sin(angle) * radius
-      const scale = 1 + Math.random() * 2
-      const type = Math.random() > 0.5 ? 'tree' : 'rock'
-      temp.push({ x, z, scale, type, id: i })
+      temp.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, scale: 1 + Math.random() * 2, type: Math.random() > 0.5 ? 'tree' : 'rock', id: i })
     }
     return temp
   }, [count])
-
   return (
     <group position={[0, -100, 0]}>
       {items.map((item) => (
         <group key={item.id} position={[item.x, 0, item.z]} scale={[item.scale, item.scale, item.scale]}>
           {item.type === 'tree' ? (
             <group>
-               <mesh position={[0, 10, 0]}>
-                 <cylinderGeometry args={[2, 2, 20]} />
-                 <meshStandardMaterial color="#4a3c31" />
-               </mesh>
-               <mesh position={[0, 30, 0]}>
-                 <coneGeometry args={[15, 40, 4]} />
-                 <meshStandardMaterial color="#1a472a" roughness={0.8} />
-               </mesh>
+               <mesh position={[0, 10, 0]}><cylinderGeometry args={[2, 2, 20]} /><meshStandardMaterial color="#4a3c31" /></mesh>
+               <mesh position={[0, 30, 0]}><coneGeometry args={[15, 40, 4]} /><meshStandardMaterial color="#1a472a" roughness={0.8} /></mesh>
             </group>
           ) : (
-            <mesh position={[0, 5, 0]} rotation={[Math.random(), Math.random(), Math.random()]}>
-              <dodecahedronGeometry args={[10, 0]} />
-              <meshStandardMaterial color="#888" roughness={0.9} />
-            </mesh>
+            <mesh position={[0, 5, 0]} rotation={[Math.random(), Math.random(), Math.random()]}><dodecahedronGeometry args={[10, 0]} /><meshStandardMaterial color="#888" roughness={0.9} /></mesh>
           )}
         </group>
       ))}
@@ -290,79 +203,59 @@ function BackgroundScenery({ count = 40 }) {
   )
 }
 
-// --- SNOW COMPONENTS ---
-function createCircleTexture() {
-  const canvas = document.createElement('canvas')
-  canvas.width = 64
-  canvas.height = 64
-  const context = canvas.getContext('2d')
-  context.beginPath()
-  context.arc(32, 32, 30, 0, 2 * Math.PI) 
-  context.fillStyle = '#ffffff'
-  context.fill()
-  return new THREE.CanvasTexture(canvas)
-}
-
 function Snow({ count = 2000 }) {
   const points = useRef()
-  const texture = useMemo(() => createCircleTexture(), [])
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+    const context = canvas.getContext('2d'); context.beginPath(); context.arc(32, 32, 30, 0, 2 * Math.PI); context.fillStyle = '#ffffff'; context.fill();
+    return new THREE.CanvasTexture(canvas)
+  }, [])
   const particlesPosition = useMemo(() => {
     const positions = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 800 
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 600 
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 800 
+      positions[i * 3] = (Math.random() - 0.5) * 800; positions[i * 3 + 1] = (Math.random() - 0.5) * 600; positions[i * 3 + 2] = (Math.random() - 0.5) * 800;
     }
     return positions
   }, [count])
-
   useFrame((state) => {
     const { clock } = state
     for (let i = 0; i < count; i++) {
       const i3 = i * 3
       points.current.geometry.attributes.position.array[i3 + 1] -= 0.5 + Math.random() * 0.1
-      points.current.geometry.attributes.position.array[i3] += 
-        Math.sin(clock.elapsedTime + points.current.geometry.attributes.position.array[i3]) * 0.05
+      points.current.geometry.attributes.position.array[i3] += Math.sin(clock.elapsedTime + points.current.geometry.attributes.position.array[i3]) * 0.05
       if (points.current.geometry.attributes.position.array[i3 + 1] < -300) {
-        points.current.geometry.attributes.position.array[i3 + 1] = 300
-        points.current.geometry.attributes.position.array[i3] = (Math.random() - 0.5) * 800 
-        points.current.geometry.attributes.position.array[i3 + 2] = (Math.random() - 0.5) * 800 
+        points.current.geometry.attributes.position.array[i3 + 1] = 300; points.current.geometry.attributes.position.array[i3] = (Math.random() - 0.5) * 800; points.current.geometry.attributes.position.array[i3 + 2] = (Math.random() - 0.5) * 800;
       }
     }
     points.current.geometry.attributes.position.needsUpdate = true
   })
-
   return (
     <points ref={points} raycast={() => null}> 
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={particlesPosition.length / 3} array={particlesPosition} itemSize={3} />
-      </bufferGeometry>
+      <bufferGeometry><bufferAttribute attach="attributes-position" count={particlesPosition.length / 3} array={particlesPosition} itemSize={3} /></bufferGeometry>
       <pointsMaterial map={texture} size={4} color="#ffffff" transparent alphaTest={0.5} opacity={0.9} sizeAttenuation={true} depthWrite={false} />
     </points>
   )
 }
 
 // --- MAIN APP COMPONENT ---
+// Default Export used by main.jsx
 export default function App() {
   const [ornaments, setOrnaments] = useState([]) 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [tempPos, setTempPos] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [hasInteracted, setHasInteracted] = useState(false)
-  
-  // CHANGED: Added state to lock user interaction during intro
   const [isLocked, setIsLocked] = useState(true)
+
+  const { active } = useProgress()
+  const isReady = !active
 
   const controlsRef = useRef()
 
   useEffect(() => {
     const q = query(collection(db, "ornaments"), orderBy("createdAt", "asc"))
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const liveData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-      setOrnaments(liveData)
+      setOrnaments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
     })
     return () => unsubscribe()
   }, [])
@@ -378,107 +271,60 @@ export default function App() {
       })
       setIsModalOpen(false)
       setTempPos(null)
-    } catch (e) {
-      console.error("Error adding document: ", e)
-    }
+    } catch (e) { console.error("Error adding document: ", e) }
   }
 
   const handleDelete = async (id) => {
-    if (window.confirm("Delete this ornament?")) {
-      await deleteDoc(doc(db, "ornaments", id))
-    }
+    if (window.confirm("Delete this ornament?")) await deleteDoc(doc(db, "ornaments", id))
   }
 
   const handleTreeClick = (worldPoint) => {
-    // CHANGED: Prevent clicking if locked
     if (isLocked) return; 
-
     setActiveId(null)
-    const localPoint = {
-        x: worldPoint.x - TREE_POSITION[0],
-        y: worldPoint.y - TREE_POSITION[1],
-        z: worldPoint.z - TREE_POSITION[2]
-    }
-    setTempPos(localPoint)
+    setTempPos({ x: worldPoint.x - TREE_POSITION[0], y: worldPoint.y - TREE_POSITION[1], z: worldPoint.z - TREE_POSITION[2] })
     setIsModalOpen(true)
   }
 
-  const handleUserInteraction = () => {
-    if (!hasInteracted) setHasInteracted(true)
-  }
-
   return (
-    <div 
-      style={{ width: '100vw', height: '100vh', position: 'relative' }}
-      onPointerDown={handleUserInteraction}
-    >
-      
+    <div style={{ width: '100vw', height: '100vh', position: 'relative' }} onPointerDown={() => !hasInteracted && setHasInteracted(true)}>
       <MusicPlayer />
-      
       <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
+      <Overlay isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleOrnamentSubmit} initialPos={tempPos} />
 
-      <Overlay 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleOrnamentSubmit}
-        initialPos={tempPos}
-      />
-
-      <Canvas 
-        // Start on the opposite side of the tree
-        camera={{ position: [-180, 200, -250], fov: 70 }}
-        onPointerMissed={() => setActiveId(null)}
-      >
+      <Canvas camera={{ position: [-180, 200, -250], fov: 70 }} onPointerMissed={() => setActiveId(null)}>
         <fog attach="fog" args={['#050505', 200, 900]} />
         <color attach="background" args={['#050505']} />
         
-        {/* CHANGED: Passed unlock handler to CameraAnimator */}
-        <CameraAnimator 
-            controlsRef={controlsRef} 
-            onFinish={() => setIsLocked(false)} 
-        />
+        <CameraAnimator controlsRef={controlsRef} onFinish={() => setIsLocked(false)} isReady={isReady} />
 
         <Snow count={2000} />
         <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-        
         <Moon />
-
         <ambientLight intensity={0.5} />
         <Environment preset="park" />
 
-        {/* --- SCENE SUSPENSE --- */}
         <Suspense fallback={null}>
           <group position={TREE_POSITION}> 
-            <Tree 
-              onTreeClick={handleTreeClick} 
-              ornaments={ornaments}
-              activeId={activeId}
-              setActiveId={setActiveId}
-            />
+            <Tree onTreeClick={handleTreeClick} ornaments={ornaments} activeId={activeId} setActiveId={setActiveId} startEnabled={isReady} />
           </group>
-
           <UnderTreePresents />
           <Ground />
           <BackgroundScenery />
         </Suspense>
 
-        {/* --- INSTRUCTION HINT --- */}
         <Suspense fallback={null}>
             <InstructionHint interacted={hasInteracted} />
         </Suspense>
 
-        <OrbitControls 
-          ref={controlsRef}
-          makeDefault
-          enablePan={false}
-          // CHANGED: OrbitControls are disabled if modal is open OR locked
-          enabled={!isModalOpen && !isLocked}
-          minDistance={80} 
-          maxDistance={400} 
-          maxPolarAngle={Math.PI / 2} 
-          minPolarAngle={0.3}         
-        />
+        <OrbitControls ref={controlsRef} makeDefault enablePan={false} enabled={!isModalOpen && !isLocked} minDistance={80} maxDistance={400} maxPolarAngle={Math.PI / 2} minPolarAngle={0.3} />
       </Canvas>
+
+      <Loader 
+        containerStyles={{ background: '#050505' }}
+        innerStyles={{ width: '300px', background: '#333' }}
+        barStyles={{ background: '#FFD700', height: '10px' }}
+        dataStyles={{ fontSize: '14px', fontFamily: 'Arial', color: '#FFD700' }}
+      />
     </div>
   )
 }
