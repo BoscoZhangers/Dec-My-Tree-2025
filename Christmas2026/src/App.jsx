@@ -1,5 +1,4 @@
 import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react'
-// CHANGED: Added useThree to imports
 import { Canvas, useFrame, useThree } from '@react-three/fiber' 
 import { OrbitControls, Environment, Stars, useGLTF, Billboard, Text, useTexture, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
@@ -20,14 +19,16 @@ function InstructionHint({ interacted }) {
   const [visible, setVisible] = useState(false)
   const iconTexture = useTexture('/click-icon.png')
 
-  // CHANGED: Responsive Logic
+  // --- RESPONSIVE LOGIC ---
   const { width } = useThree((state) => state.size)
   const isMobile = width < 600
 
-  // Desktop: [-160, 20, 0] (Left side)
-  // Mobile:  [-60, 50, -30] (Closer to center, higher up, pulled slightly towards camera)
-  const position = isMobile ? [-60, 50, -30] : [-160, 20, 0]
-  const scale = isMobile ? 0.4 : 0.7
+  // Mobile: Centered horizontally (x=0), slightly above base (y=15), closer to trunk (z=-60)
+  // Desktop: Off to the side (x=-160)
+  const position = isMobile ? [0, 15, -60] : [-160, 20, 0]
+  
+  // Mobile: Smaller scale (0.35)
+  const scale = isMobile ? 0.35 : 0.7
   
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime()
@@ -41,9 +42,8 @@ function InstructionHint({ interacted }) {
 
     // 2. ANIMATION (Bobbing)
     if (groupRef.current && visible) {
-      // Bob on the Y axis based on the responsive base Y
       groupRef.current.position.y = position[1] + Math.sin(time * 3) * 3
-      // Enforce X and Z to ensure they update if window resizes
+      // Enforce X/Z for resizing consistency
       groupRef.current.position.x = position[0]
       groupRef.current.position.z = position[2]
     }
@@ -58,7 +58,7 @@ function InstructionHint({ interacted }) {
           
           {/* --- YELLOW ROUNDED BOX --- */}
           <RoundedBox 
-            args={[45, 45, 1]} 
+            args={[42, 42, 1]} 
             radius={6}         
             smoothness={4}     
             position={[-70, 0, -1]} 
@@ -68,7 +68,7 @@ function InstructionHint({ interacted }) {
 
           {/* --- THE ICON --- */}
           <mesh position={[-70, 0, 0.6]}> 
-             <planeGeometry args={[30, 30]} />
+             <planeGeometry args={[28, 28]} /> 
              <meshBasicMaterial 
                map={iconTexture} 
                transparent={true} 
@@ -81,7 +81,7 @@ function InstructionHint({ interacted }) {
           <Text
             font="/Roboto-Regular.ttf" 
             fontSize={15}
-            maxWidth={200}
+            maxWidth={180} 
             lineHeight={1.2}
             color="#FFD700"
             textAlign="left"
@@ -89,7 +89,7 @@ function InstructionHint({ interacted }) {
             anchorY="middle"
             position={[-25, 0, 0]} 
           >
-            Click on an empty spot to hang an ornament
+            Click an empty spot to hang an ornament
             <meshStandardMaterial emissive="#FFD700" emissiveIntensity={0.5} toneMapped={false} />
           </Text>
         </group>
@@ -99,22 +99,29 @@ function InstructionHint({ interacted }) {
 }
 
 // --- CAMERA ANIMATOR COMPONENT ---
-function CameraAnimator({ controlsRef }) {
-  // Target set to the "Back" (other side) of the tree
-  const targetPosition = new THREE.Vector3(80, 0, -240); 
-  const targetLookAt = new THREE.Vector3(0, -20, 0); 
+// CHANGED: Accepted onFinish prop to unlock screen
+function CameraAnimator({ controlsRef, onFinish }) {
+  const { width } = useThree((state) => state.size)
+  const isMobile = width < 600
 
+  const targetPosition = useMemo(() => {
+    return isMobile 
+      ? new THREE.Vector3(100, 0, -340) 
+      : new THREE.Vector3(80, 0, -240)
+  }, [isMobile])
+
+  const targetLookAt = new THREE.Vector3(0, -20, 0); 
   const initialState = useRef(null);
+  const hasFinishedRef = useRef(false); // Track if we've notified parent
 
   useFrame((state) => {
     if (!controlsRef.current) return;
 
     const time = state.clock.getElapsedTime();
-    
-    // Animation runs from 8s to 13s
     const startTime = 8.0;
     const duration = 5.0;
 
+    // 1. Before Animation starts
     if (time < startTime) {
       if (!initialState.current) {
         initialState.current = {
@@ -126,15 +133,22 @@ function CameraAnimator({ controlsRef }) {
     }
 
     let progress = (time - startTime) / duration;
-    progress = Math.min(Math.max(progress, 0), 1);
-    
-    const ease = progress * progress * (3 - 2 * progress);
 
-    if (progress < 1) {
-       state.camera.position.lerpVectors(initialState.current.pos, targetPosition, ease);
-       controlsRef.current.target.lerpVectors(initialState.current.target, targetLookAt, ease);
-       controlsRef.current.update();
+    // 2. Animation Finished?
+    if (progress >= 1) {
+      if (!hasFinishedRef.current) {
+        hasFinishedRef.current = true;
+        if (onFinish) onFinish(); // UNLOCK HERE
+      }
+      return;
     }
+
+    // 3. Animating
+    const ease = progress * progress * (3 - 2 * progress);
+    
+    state.camera.position.lerpVectors(initialState.current.pos, targetPosition, ease);
+    controlsRef.current.target.lerpVectors(initialState.current.target, targetLookAt, ease);
+    controlsRef.current.update();
   });
 
   return null;
@@ -335,6 +349,9 @@ export default function App() {
   const [tempPos, setTempPos] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [hasInteracted, setHasInteracted] = useState(false)
+  
+  // CHANGED: Added state to lock user interaction during intro
+  const [isLocked, setIsLocked] = useState(true)
 
   const controlsRef = useRef()
 
@@ -373,6 +390,9 @@ export default function App() {
   }
 
   const handleTreeClick = (worldPoint) => {
+    // CHANGED: Prevent clicking if locked
+    if (isLocked) return; 
+
     setActiveId(null)
     const localPoint = {
         x: worldPoint.x - TREE_POSITION[0],
@@ -412,7 +432,11 @@ export default function App() {
         <fog attach="fog" args={['#050505', 200, 900]} />
         <color attach="background" args={['#050505']} />
         
-        <CameraAnimator controlsRef={controlsRef} />
+        {/* CHANGED: Passed unlock handler to CameraAnimator */}
+        <CameraAnimator 
+            controlsRef={controlsRef} 
+            onFinish={() => setIsLocked(false)} 
+        />
 
         <Snow count={2000} />
         <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
@@ -447,7 +471,8 @@ export default function App() {
           ref={controlsRef}
           makeDefault
           enablePan={false}
-          enabled={!isModalOpen}
+          // CHANGED: OrbitControls are disabled if modal is open OR locked
+          enabled={!isModalOpen && !isLocked}
           minDistance={80} 
           maxDistance={400} 
           maxPolarAngle={Math.PI / 2} 
