@@ -10,7 +10,6 @@ export function useNotification() {
 function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
   const [isExiting, setIsExiting] = useState(false)
 
-  // Configuration based on type
   const isHint = type === 'hint'
   
   // Colors
@@ -20,15 +19,18 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
   const iconColor = isHint ? '#50ff64' : '#ff5050'
   const progressColor = isHint ? '#50ff64' : '#ff5050'
   
-  // Content
-  const iconChar = isHint ? '?' : '!'
+  const iconContent = isHint ? (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+      <path d="M9 18h6" />
+      <path d="M10 22h4" />
+    </svg>
+  ) : '!'
+
   const titleText = isHint ? 'Hang an Ornament' : 'Could Not Hang Ornament'
 
-  // Auto-close timer
   useEffect(() => {
-    const timer = setTimeout(() => {
-      handleClose()
-    }, duration)
+    const timer = setTimeout(() => handleClose(), duration)
     return () => clearTimeout(timer)
   }, [duration])
 
@@ -38,74 +40,44 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
   }
 
   return (
-    <div style={{
-      position: 'relative',
-      width: '400px',
-      maxWidth: '90vw', 
-      background: bgColor, 
-      border: `1px solid ${borderColor}`,
-      borderRadius: '12px',
-      padding: '16px',
-      marginBottom: '10px', 
-      boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '20px',
-      color: '#fff',
-      fontFamily: 'Arial, sans-serif',
-      opacity: isExiting ? 0 : 1,
-      // Animation logic handles both left/right directions depending on css alignment
-      transform: isExiting ? 'scale(0.9)' : 'scale(1)', 
-      transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-      overflow: 'hidden', 
-      pointerEvents: 'auto'
-    }}>
+    <div 
+      className="toast-card" 
+      style={{
+        background: bgColor, 
+        border: `1px solid ${borderColor}`,
+        opacity: isExiting ? 0 : 1,
+        transform: isExiting ? 'scale(0.9)' : 'scale(1)', 
+      }}
+    >
       {/* ICON */}
       <div style={{
-        minWidth: '32px', height: '32px', borderRadius: '50%',
+        minWidth: '42px', height: '42px', borderRadius: '50%',
         background: iconBg, color: iconColor,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 'bold', fontSize: '18px', marginLeft: '8px'
+        fontWeight: 'bold', fontSize: '20px', flexShrink: 0
       }}>
-        {iconChar}
+        {iconContent}
       </div>
 
       {/* TEXT */}
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '2px' }}>
+        <div className="toast-title">
           {titleText}
         </div>
-        <div style={{ fontSize: '12px', color: '#ccc', lineHeight: '1.4' }}>
+        <div className="toast-message">
           {message}
         </div>
       </div>
 
       {/* CLOSE BUTTON */}
-      <button 
-        onClick={handleClose}
-        style={{
-          background: 'none', border: 'none', color: '#888', 
-          cursor: 'pointer', fontSize: '18px', padding: '4px'
-        }}
-      >
-        ✕
-      </button>
+      <button onClick={handleClose} className="toast-close">✕</button>
 
-      {/* TIME PROGRESS BAR */}
+      {/* PROGRESS BAR */}
       <div style={{
-        position: 'absolute',
-        bottom: 0, left: 0, height: '3px',
-        background: progressColor,
-        width: '100%',
+        position: 'absolute', bottom: 0, left: 0, height: '3px',
+        background: progressColor, width: '100%',
         animation: `progress ${duration}ms linear forwards`
       }} />
-
-      <style>{`
-        @keyframes progress {
-          from { width: 100%; }
-          to { width: 0%; }
-        }
-      `}</style>
     </div>
   )
 }
@@ -117,18 +89,8 @@ export function NotificationProvider({ children }) {
   const addNotification = useCallback((message, type = 'error', uniqueId = null) => {
     setNotifications(prev => {
       const cleanList = uniqueId ? prev.filter(n => n.uniqueId !== uniqueId) : prev;
-      
-      // --- UPDATE HERE: Check type and set duration accordingly ---
       const duration = type === 'hint' ? 10000 : 5000; 
-
-      const newToast = { 
-        id: Date.now(), 
-        uniqueId: uniqueId, 
-        message, 
-        type,
-        duration // Pass the calculated duration
-      }
-      
+      const newToast = { id: Date.now(), uniqueId, message, type, duration }
       return [...cleanList, newToast]
     })
   }, [])
@@ -141,34 +103,88 @@ export function NotificationProvider({ children }) {
     <NotificationContext.Provider value={{ addNotification }}>
       {children}
       
-      {/* CSS For Responsive Positioning */}
       <style>{`
+        /* --- RESPONSIVE CSS --- */
+        
         .notification-container {
           position: fixed;
           z-index: 9999;
           display: flex;
           pointer-events: none;
-          
-          /* --- DESKTOP DEFAULTS --- */
+          flex-direction: column;
+          align-items: flex-end;
           bottom: 20px;
           right: 20px;
-          flex-direction: column; /* Stacks upwards from bottom */
-          align-items: flex-end;
         }
 
-        /* --- MOBILE OVERRIDES --- */
+        /* MOBILE DEFAULTS */
+        .toast-card {
+          position: relative;
+          width: 85vw; /* Responsive on Mobile */
+          max-width: 550px; 
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 10px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          color: #fff;
+          font-family: Arial, sans-serif;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          overflow: hidden;
+          pointer-events: auto;
+        }
+
+        .toast-title {
+          font-weight: bold;
+          font-size: 16px;
+          margin-bottom: 4px;
+        }
+
+        .toast-message {
+          font-size: 14px;
+          color: #ccc;
+          line-height: 1.4;
+        }
+
+        .toast-close {
+          background: none;
+          border: none;
+          color: #888;
+          cursor: pointer;
+          font-size: 18px;
+          padding: 4px;
+        }
+
+        @keyframes progress {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+
+        /* --- DESKTOP OVERRIDES --- */
+        @media (min-width: 550px) {
+          .toast-card {
+            width: 550px; 
+            padding: 28px;
+          }
+          
+          .toast-title {
+            font-size: 18px; 
+          }
+
+          .toast-message {
+            font-size: 16px;
+          }
+        }
+
+        /* --- MOBILE CONTAINER OVERRIDES --- */
         @media (max-width: 600px) {
           .notification-container {
-            bottom: auto;   /* Unset bottom */
-            top: 20px;      /* Move to Top */
-            left: 0;        
-            right: 0;       /* Full width helpers */
-            
-            align-items: center; /* Center horizontally */
-            
-            /* column-reverse makes the LAST item in the array (Newest) 
-               appear at the TOP visually. The stack then grows DOWN.
-            */
+            bottom: auto;   
+            top: 20px;      
+            left: 0; right: 0;       
+            align-items: center; 
             flex-direction: column-reverse; 
           }
         }
@@ -176,11 +192,7 @@ export function NotificationProvider({ children }) {
 
       <div className="notification-container">
         {notifications.map(n => (
-          <Toast 
-            key={n.id} 
-            {...n} 
-            onClose={removeNotification} 
-          />
+          <Toast key={n.id} {...n} onClose={removeNotification} />
         ))}
       </div>
     </NotificationContext.Provider>

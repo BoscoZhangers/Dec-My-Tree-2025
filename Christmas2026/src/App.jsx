@@ -12,15 +12,12 @@ import { NotificationProvider, useNotification } from './NotificationSystem'
 const TREE_POSITION = [0, -100, 0] 
 
 // --- HINT TIMER ---
-// UPDATED: No longer accepts 'interacted' prop. Fires regardless of user action.
 function HintTimer() {
   const { addNotification } = useNotification()
   const [hasFired, setHasFired] = useState(false)
 
   useFrame(({ clock }) => {
     if (hasFired) return
-    
-    // Trigger strictly at 13.5 seconds
     if (clock.getElapsedTime() > 13.5) {
       addNotification("Click an empty spot to hang an ornament", "hint", "intro_hint")
       setHasFired(true)
@@ -62,21 +59,13 @@ function CameraAnimator({ controlsRef, onFinish, isReady }) {
     const startTime = 8.0; 
     const duration = 5.0;
 
-    // --- WAITING PHASE ---
     if (localTime < startTime) {
-      // 1. Keep start state synced with current camera position
       startState.current.pos.copy(state.camera.position);
       startState.current.target.copy(controlsRef.current.target);
-      
-      // 2. NEW FIX: Force controls to update even while waiting!
-      // This ensures the camera rotation (LookAt) stays valid after the "Shake" effect.
-      // Without this, the rotation is stale, causing a snap at t=8.0.
       controlsRef.current.update();
-      
       return; 
     }
 
-    // --- ANIMATION PHASE ---
     let progress = (localTime - startTime) / duration;
 
     if (progress >= 1) {
@@ -159,8 +148,6 @@ function BackgroundScenery({ count = 150 }) {
     const temp = []
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2
-      
-      // RANGE UPDATED: 350 (min) + 650 (variance) = 350 to 1000 range
       const radius = 350 + Math.random() * 650 
 
       temp.push({ 
@@ -196,34 +183,55 @@ function BackgroundScenery({ count = 150 }) {
   )
 }
 
-function Snow({ count = 2000 }) {
+function Snow({ count = 1000 }) {
   const points = useRef()
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
     const context = canvas.getContext('2d'); context.beginPath(); context.arc(32, 32, 30, 0, 2 * Math.PI); context.fillStyle = '#ffffff'; context.fill();
     return new THREE.CanvasTexture(canvas)
   }, [])
+  
   const particlesPosition = useMemo(() => {
     const positions = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 800; positions[i * 3 + 1] = (Math.random() - 0.5) * 600; positions[i * 3 + 2] = (Math.random() - 0.5) * 800;
+      // X and Z: Spread
+      positions[i * 3] = (Math.random() - 0.5) * 800; 
+      
+      // FIX: INITIAL SPAWN RANGE = Total Recycle Distance (900)
+      // This ensures that when the first flake hits bottom, the last flake is exactly at the top.
+      // Range: 200 (Start) to 1100 (End). 
+      positions[i * 3 + 1] = 200 + Math.random() * 900; 
+      
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 800;
     }
     return positions
   }, [count])
+
   useFrame((state) => {
     const { clock } = state
+    if (!points.current) return
+
     for (let i = 0; i < count; i++) {
       const i3 = i * 3
-      points.current.geometry.attributes.position.array[i3 + 1] -= 0.5 + Math.random() * 0.1
+      // Speed
+      points.current.geometry.attributes.position.array[i3 + 1] -= 0.7 + Math.random() * 0.3
+      // Wobble
       points.current.geometry.attributes.position.array[i3] += Math.sin(clock.elapsedTime + points.current.geometry.attributes.position.array[i3]) * 0.05
-      if (points.current.geometry.attributes.position.array[i3 + 1] < -300) {
-        points.current.geometry.attributes.position.array[i3 + 1] = 300; points.current.geometry.attributes.position.array[i3] = (Math.random() - 0.5) * 800; points.current.geometry.attributes.position.array[i3 + 2] = (Math.random() - 0.5) * 800;
+      
+      // FIX: RECYCLE LOGIC
+      // If < -200, move to +700.
+      // The distance (700 - -200) is 900, which matches our spawn range above.
+      if (points.current.geometry.attributes.position.array[i3 + 1] < -200) {
+        points.current.geometry.attributes.position.array[i3 + 1] = 700; 
+        points.current.geometry.attributes.position.array[i3] = (Math.random() - 0.5) * 800; 
+        points.current.geometry.attributes.position.array[i3 + 2] = (Math.random() - 0.5) * 800;
       }
     }
     points.current.geometry.attributes.position.needsUpdate = true
   })
+
   return (
-    <points ref={points} raycast={() => null}> 
+    <points ref={points} raycast={() => null} frustumCulled={false}> 
       <bufferGeometry><bufferAttribute attach="attributes-position" count={particlesPosition.length / 3} array={particlesPosition} itemSize={3} /></bufferGeometry>
       <pointsMaterial map={texture} size={4} color="#ffffff" transparent alphaTest={0.5} opacity={0.9} sizeAttenuation={true} depthWrite={false} />
     </points>
@@ -236,8 +244,10 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [tempPos, setTempPos] = useState(null)
   const [activeId, setActiveId] = useState(null)
-  // CHANGED: Removed 'hasInteracted' state as it is no longer used
   const [isLocked, setIsLocked] = useState(true)
+  
+  // STATE: Controls when snow STARTS falling (Mounts component)
+  const [snowing, setSnowing] = useState(false)
 
   const { active } = useProgress()
   const isReady = !active
@@ -279,7 +289,6 @@ export default function App() {
 
   return (
     <NotificationProvider>
-      {/* CHANGED: Removed onPointerDown handler from main div */}
       <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
         <MusicPlayer />
         <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
@@ -291,10 +300,11 @@ export default function App() {
           
           <CameraAnimator controlsRef={controlsRef} onFinish={() => setIsLocked(false)} isReady={isReady} />
           
-          {}
           <HintTimer />
 
-          <Snow count={2000} />
+          {/* TRIGGER: Snow starts falling immediately from Top when triggered */}
+          {snowing && <Snow count={1000} />}
+          
           <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
           <Moon />
           <ambientLight intensity={0.5} />
@@ -302,7 +312,14 @@ export default function App() {
 
           <Suspense fallback={null}>
             <group position={TREE_POSITION}> 
-              <Tree onTreeClick={handleTreeClick} ornaments={ornaments} activeId={activeId} setActiveId={setActiveId} startEnabled={isReady} />
+              <Tree 
+                onTreeClick={handleTreeClick} 
+                ornaments={ornaments} 
+                activeId={activeId} 
+                setActiveId={setActiveId} 
+                startEnabled={isReady}
+                onHalfWay={() => setSnowing(true)} 
+              />
             </group>
             <UnderTreePresents />
             <Ground />

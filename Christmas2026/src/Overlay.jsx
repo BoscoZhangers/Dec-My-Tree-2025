@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Environment } from '@react-three/drei'
 import * as THREE from 'three'
+import { useNotification } from './NotificationSystem'
 
 // --- CONSTANTS ---
 const PALETTE = [
@@ -188,12 +189,14 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
     setTool(t)
     if (t === 'pen') setBrushSize(4)
     if (t === 'brush') setBrushSize(20)
-    if (t === 'eraser') setBrushSize(30)
+    if (t === 'eraser') setBrushSize(20)
   }
+
+  const { addNotification } = useNotification()
 
   const handleSubmit = () => {
     if (message.length < 1 || message.length > 50) {
-      alert("Message must be 1-50 characters")
+      addNotification("Invalid message. Must be 1-50 characters long.", "error", "message_error");
       return
     }
     setIsSubmitting(true)

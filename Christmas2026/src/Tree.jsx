@@ -1,9 +1,12 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF, Billboard, Line, Text, Points } from '@react-three/drei'
+import { useGLTF, Billboard, Line, Text, Points, Trail } from '@react-three/drei'
 import * as THREE from 'three'
 import { Ornament } from './Ornament' 
 import { useNotification } from './NotificationSystem'
+
+// ... (KEEP ALL HELPERS/CONSTANTS/COMPONENTS UNCHANGED UP TO NEONSTAR) ...
+// Copy previous helpers exactly.
 
 // --- TUNING CONTROLS ---
 const TREE_BASE_Y = -100;   
@@ -150,15 +153,9 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
           <group key={globalIndex} position={[xPos, 0, 0]}>
             <Text
               ref={el => charRefs.current[globalIndex] = el}
-              // 1. VISIBILITY SNAP: Hides object completely if mostly transparent
               visible={currentOpacity > 0.01}
-              
-              // 2. RENDER ORDER: Forces text to draw on top of fog (Standard is 0)
               renderOrder={1000} 
-              
-              // 3. DISABLE DEPTH WRITE (Top Level): Ensures the OUTLINE doesn't cut holes in fog
               depthWrite={false}
-              
               fontSize={18}
               color={GOLD_COLOR} 
               font="/GreatVibes-Regular.ttf"
@@ -170,7 +167,6 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
               raycast={() => null} 
             >
               {char}
-              {/* 4. Material Settings for the inner fill */}
               <meshStandardMaterial 
                 color={GOLD_COLOR}
                 emissive={GOLD_COLOR} 
@@ -178,7 +174,7 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
                 toneMapped={false} 
                 transparent 
                 opacity={currentOpacity} 
-                depthWrite={false} // Double safety
+                depthWrite={false} 
               />
             </Text>
             {charStates[globalIndex].showSparkle && (
@@ -223,15 +219,28 @@ function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
 }
 
 // --- NEON STAR ---
-function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef }) { // <--- Added starYRef prop
+function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef, onHalfWay }) { 
   const glowTexture = useMemo(() => createGlowTexture(), [])
   const starRef = useRef()
   const burstRef = useRef()
+  const auraRef = useRef() 
   const phaseRef = useRef('spiraling') 
   const [burstOpacity, setBurstOpacity] = useState(0)
   const shakeTime = useRef(0)
   const hasTriggeredFlash = useRef(false)
   const rotationAngle = useRef(0)
+  
+  // Track triggered state so we only fire snow once
+  const hasTriggeredSnow = useRef(false)
+  
+  const [trailReady, setTrailReady] = useState(false)
+
+  useEffect(() => {
+    if(startEnabled) {
+        const t = setTimeout(() => setTrailReady(true), 100)
+        return () => clearTimeout(t)
+    }
+  }, [startEnabled])
 
   const { localTime, active } = useLocalTime(startEnabled)
 
@@ -257,6 +266,14 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef }) { /
     
     const t = localTime 
 
+    if (auraRef.current) {
+        const pulseSpeed = 3.0;
+        const pulseScale = 2.5 + Math.sin(t * pulseSpeed) * 0.5; 
+        auraRef.current.scale.set(pulseScale, pulseScale, 1);
+        auraRef.current.material.opacity = 0.55 + Math.sin(t * pulseSpeed) * 0.15;
+        auraRef.current.rotation.z -= delta * 0.2; 
+    }
+
     if (phaseRef.current === 'spiraling') {
       const duration = 4.0 
       const progress = Math.min(t / duration, 1)
@@ -265,22 +282,34 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef }) { /
       const currentRadius = radiusBase * (1 - progress) 
       starRef.current.position.set(Math.cos(angle) * currentRadius, currentY, Math.sin(angle) * currentRadius)
       
-      // --- REAL TIME SYNC UPDATE ---
-      // Update the Ref so the lights know where the star is!
       if (starYRef) starYRef.current = currentY; 
 
       rotationAngle.current += delta * 5
       starRef.current.rotation.z = rotationAngle.current
       if (progress >= 1) phaseRef.current = 'spinning'
     } 
-    // ... (Rest of component is unchanged) ...
+    
     if (phaseRef.current === 'spinning') {
       starRef.current.position.set(0, targetY, 0)
-      if (starYRef) starYRef.current = targetY; // Keep updating at top
+      if (starYRef) starYRef.current = targetY; 
+      
       rotationAngle.current = (rotationAngle.current + delta * 40) % (Math.PI * 2)
       starRef.current.rotation.y = rotationAngle.current
+
+      // --- SPIN PROGRESS LOGIC ---
+      const spinDuration = 1.4;
+      const timeInSpin = t - 4.0;
+      const spinProgress = timeInSpin / spinDuration;
+
+      // Trigger if we are 75% through the spin
+      if (spinProgress > 0.99999999 && !hasTriggeredSnow.current) {
+          hasTriggeredSnow.current = true;
+          if (onHalfWay) onHalfWay(); 
+      }
+
       if (t > 5.4) phaseRef.current = 'settled'
     }
+
     if (phaseRef.current === 'settled') {
       starRef.current.position.set(0, targetY + Math.sin(t * 2) * 2, 0)
       state.camera.getWorldQuaternion(starRef.current.quaternion)
@@ -304,18 +333,14 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef }) { /
     }
   })
   
-  // ... JSX Return ...
-  return (
-    <group ref={starRef} visible={active}>
-      {burstOpacity > 0 && (
-        <Billboard position={[0, 0, -1]}>
-          <mesh ref={burstRef} scale={[50, 50, 1]} raycast={() => null}>
-            <planeGeometry />
-            <meshBasicMaterial map={glowTexture} transparent opacity={Math.min(1, burstOpacity)} color="#FFFFFF" blending={THREE.AdditiveBlending} depthWrite={false} />
-          </mesh>
-        </Billboard>
-      )}
-      <group scale={[size, size, size]}>
+  const StarVisuals = (
+    <group scale={[size, size, size]}>
+        {phaseRef.current === 'spiraling' && (
+            <mesh ref={auraRef} position={[0, 0, -0.2]}>
+                <planeGeometry args={[1, 1]} />
+                <meshBasicMaterial map={glowTexture} color="#FFFFAA" transparent blending={THREE.AdditiveBlending} depthWrite={false} />
+            </mesh>
+        )}
         <GlowRipple texture={glowTexture} color="#FFFF00" size={2} speed={0.5} offset={0.0} />
         <GlowRipple texture={glowTexture} color="#FFFF00" size={2} speed={0.5} offset={0.33} />
         {phaseRef.current === 'spiraling' && <SparkleBurst active={true} position={[0, 0, 0]} />}
@@ -325,13 +350,30 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef }) { /
         </mesh>
         <mesh raycast={() => null}><shapeGeometry args={[shape]} /><meshBasicMaterial color="#FFFF00" transparent opacity={0.1} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
         <Line points={points} color="#FFFF00" lineWidth={5} closed transparent opacity={1} />
-      </group>
+    </group>
+  )
+
+  return (
+    <group ref={starRef} visible={active} position={[120, 25, 0]}>
+      {burstOpacity > 0 && (
+        <Billboard position={[0, 0, -1]}>
+          <mesh ref={burstRef} scale={[50, 50, 1]} raycast={() => null}>
+            <planeGeometry />
+            <meshBasicMaterial map={glowTexture} transparent opacity={Math.min(1, burstOpacity)} color="#FFFFFF" blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+        </Billboard>
+      )}
+      {trailReady ? (
+        <Trail width={18} length={0.7} color="#FFFF00" attenuation={(t) => t}>{StarVisuals}</Trail>
+      ) : (
+        StarVisuals
+      )}
     </group>
   )
 }
 
 // --- TREE LIGHTS ---
-const TreeLights = React.memo(({ startEnabled, starYRef }) => { // <--- Added starYRef prop
+const TreeLights = React.memo(({ startEnabled, starYRef }) => { 
   const bulbCount = 60; 
   const radiusBottom = 52; 
   const height = 180.5; 
@@ -372,7 +414,7 @@ const TreeLights = React.memo(({ startEnabled, starYRef }) => { // <--- Added st
           key={i} 
           position={curve.getPointAt(0.02 + (i / (bulbCount - 1)) * 0.98)} 
           index={i} 
-          starYRef={starYRef} // <--- Pass the Ref instead of activationTime
+          starYRef={starYRef} 
           startEnabled={startEnabled}
         />
       ))}
@@ -380,13 +422,12 @@ const TreeLights = React.memo(({ startEnabled, starYRef }) => { // <--- Added st
   )
 })
 
-function LightBulb({ position, index, startEnabled, starYRef }) { // <--- Added starYRef
+function LightBulb({ position, index, startEnabled, starYRef }) { 
   const meshRef = useRef(); 
   const meshRef2 = useRef(); 
   const glowRef = useRef(); 
   const bulbGroupRef = useRef()
   
-  // State to track if this bulb has been turned on
   const hasActivatedRef = useRef(false)
   const activationTimeRef = useRef(0)
 
@@ -405,17 +446,13 @@ function LightBulb({ position, index, startEnabled, starYRef }) { // <--- Added 
     if(!active || !meshRef.current?.material || !meshRef2.current?.material) return
     const time = localTime; 
 
-    // --- REAL TIME ACTIVATION LOGIC ---
-    // Check if the Star's current Y position (from ref) is higher than this bulb's Y position
     if (!hasActivatedRef.current && starYRef.current >= position.y) {
         hasActivatedRef.current = true;
-        activationTimeRef.current = time; // Record the exact moment we turned on
+        activationTimeRef.current = time; 
     }
 
-    // Default to dark
     let wakeUp = 0;
 
-    // If activated, animate the "wake up" glow
     if (hasActivatedRef.current) {
         wakeUp = (time - activationTimeRef.current) * 2.0; 
         wakeUp = THREE.MathUtils.clamp(wakeUp, 0, 1);
@@ -473,14 +510,13 @@ function LightBulb({ position, index, startEnabled, starYRef }) { // <--- Added 
 }
 
 // --- MAIN TREE COMPONENT ---
-export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, startEnabled }) {
+export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, startEnabled, onHalfWay }) {
   const { scene } = useGLTF('/tree.glb')
   const lastOrnLength = useRef(ornaments.length)
   const introFinished = useRef(false)
   const clickStartPos = useRef({ x: 0, y: 0 })
   const triggerRef = useRef(null)
 
-  // 1. NEW: Create a shared reference for the Star's height
   const starYRef = useRef(-999) 
 
   const { addNotification } = useNotification()
@@ -543,29 +579,49 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
 
   return (
     <group dispose={null}>
-      {/* 2. PASS starYRef to NeonStar (Writer) */}
       <NeonStar 
         triggerRef={triggerRef} 
         onFlash={() => { introFinished.current = true }} 
+        onHalfWay={onHalfWay} // Pass trigger down
         startEnabled={startEnabled} 
         starYRef={starYRef} 
       />
       
       <CelebrationText triggerRef={triggerRef} startEnabled={startEnabled} />
       
-      {/* 3. PASS starYRef to TreeLights (Reader) */}
       <TreeLights startEnabled={startEnabled} starYRef={starYRef} />
       
       {memoTree}
       
-      {ornaments.map((orn) => (
-        <Ornament 
-          key={orn.id} 
-          {...orn} 
-          isActive={activeId === orn.id} 
-          onActivate={() => setActiveId(activeId === orn.id ? null : orn.id)} 
-        />
-      ))}
+      {/* --- CLEANED MAPPING LOGIC --- */}
+      {ornaments.map((orn) => {
+        let x = 0, z = 0;
+        
+        if (Array.isArray(orn.position)) {
+            x = orn.position[0];
+            z = orn.position[2];
+        } else if (orn.position) {
+            x = orn.position.x || 0;
+            z = orn.position.z || 0;
+        }
+
+        const angle = Math.atan2(x, z);
+        
+        return (
+          <group 
+            key={orn.id} 
+            position={orn.position} 
+            rotation={[0, angle, 0]}
+          >
+            <Ornament 
+              {...orn} 
+              position={[0, 0, 0]} 
+              isActive={activeId === orn.id} 
+              onActivate={() => setActiveId(activeId === orn.id ? null : orn.id)} 
+            />
+          </group>
+        )
+      })}
     </group>
   )
 }
