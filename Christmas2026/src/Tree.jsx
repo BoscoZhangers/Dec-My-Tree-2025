@@ -134,7 +134,6 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
   const totalWidth = charArray.reduce((acc, char) => acc + getCharWidth(char), 0)
   let currentX = -totalWidth / 2 
 
-  // NEW: Elegant Metallic Gold Hex
   const GOLD_COLOR = "#D4AF37" 
 
   return (
@@ -144,29 +143,42 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
         const width = getCharWidth(char)
         const xPos = currentX + (width / 2)
         currentX += width
+        
+        const currentOpacity = charStates[globalIndex].opacity
 
         return (
           <group key={globalIndex} position={[xPos, 0, 0]}>
             <Text
               ref={el => charRefs.current[globalIndex] = el}
+              // 1. VISIBILITY SNAP: Hides object completely if mostly transparent
+              visible={currentOpacity > 0.01}
+              
+              // 2. RENDER ORDER: Forces text to draw on top of fog (Standard is 0)
+              renderOrder={1000} 
+              
+              // 3. DISABLE DEPTH WRITE (Top Level): Ensures the OUTLINE doesn't cut holes in fog
+              depthWrite={false}
+              
               fontSize={18}
-              color={GOLD_COLOR}  // <--- UPDATED
+              color={GOLD_COLOR} 
               font="/GreatVibes-Regular.ttf"
               anchorX="center"
               anchorY="middle"
               outlineWidth={0.04} 
-              outlineColor={GOLD_COLOR} // <--- UPDATED
-              outlineOpacity={charStates[globalIndex].opacity}
+              outlineColor={GOLD_COLOR}
+              outlineOpacity={currentOpacity}
               raycast={() => null} 
             >
               {char}
+              {/* 4. Material Settings for the inner fill */}
               <meshStandardMaterial 
-                color={GOLD_COLOR}    // <--- UPDATED
-                emissive={GOLD_COLOR} // <--- UPDATED
-                emissiveIntensity={1.5} // Reduced slightly from 2 for a softer, more elegant glow
+                color={GOLD_COLOR}
+                emissive={GOLD_COLOR} 
+                emissiveIntensity={1.5} 
                 toneMapped={false} 
                 transparent 
-                opacity={charStates[globalIndex].opacity} 
+                opacity={currentOpacity} 
+                depthWrite={false} // Double safety
               />
             </Text>
             {charStates[globalIndex].showSparkle && (
@@ -211,7 +223,7 @@ function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
 }
 
 // --- NEON STAR ---
-function NeonStar({ size = 7, triggerRef, onFlash, startEnabled }) { 
+function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef }) { // <--- Added starYRef prop
   const glowTexture = useMemo(() => createGlowTexture(), [])
   const starRef = useRef()
   const burstRef = useRef()
@@ -252,12 +264,19 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled }) {
       const angle = progress * Math.PI * 2 * spiralTurns
       const currentRadius = radiusBase * (1 - progress) 
       starRef.current.position.set(Math.cos(angle) * currentRadius, currentY, Math.sin(angle) * currentRadius)
+      
+      // --- REAL TIME SYNC UPDATE ---
+      // Update the Ref so the lights know where the star is!
+      if (starYRef) starYRef.current = currentY; 
+
       rotationAngle.current += delta * 5
       starRef.current.rotation.z = rotationAngle.current
       if (progress >= 1) phaseRef.current = 'spinning'
     } 
+    // ... (Rest of component is unchanged) ...
     if (phaseRef.current === 'spinning') {
       starRef.current.position.set(0, targetY, 0)
+      if (starYRef) starYRef.current = targetY; // Keep updating at top
       rotationAngle.current = (rotationAngle.current + delta * 40) % (Math.PI * 2)
       starRef.current.rotation.y = rotationAngle.current
       if (t > 5.4) phaseRef.current = 'settled'
@@ -284,7 +303,8 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled }) {
       state.camera.position.y += (Math.random() - 0.5) * intensity
     }
   })
-
+  
+  // ... JSX Return ...
   return (
     <group ref={starRef} visible={active}>
       {burstOpacity > 0 && (
@@ -311,10 +331,10 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled }) {
 }
 
 // --- TREE LIGHTS ---
-const TreeLights = React.memo(({ startEnabled }) => {
+const TreeLights = React.memo(({ startEnabled, starYRef }) => { // <--- Added starYRef prop
   const bulbCount = 60; 
-  const radiusBottom = 55; 
-  const height = 172.5; 
+  const radiusBottom = 52; 
+  const height = 180.5; 
   const yStart = 35; 
   const turns = 6
 
@@ -330,7 +350,9 @@ const TreeLights = React.memo(({ startEnabled }) => {
     for (let i = 0; i <= 200; i++) {
       const t = i / 200; 
       const y = yStart + (t * height); 
-      const r = radiusBottom * (1 - t * 0.82); 
+      let r = radiusBottom * (1 - t * 0.82); 
+      r -= Math.pow(t, 3) * 5; 
+      r = Math.max(1.51, r);
       const angle = t * Math.PI * 2 * turns
       pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r))
     }
@@ -350,7 +372,7 @@ const TreeLights = React.memo(({ startEnabled }) => {
           key={i} 
           position={curve.getPointAt(0.02 + (i / (bulbCount - 1)) * 0.98)} 
           index={i} 
-          activationTime={0.5 + (i / bulbCount) * 3.5}
+          starYRef={starYRef} // <--- Pass the Ref instead of activationTime
           startEnabled={startEnabled}
         />
       ))}
@@ -358,12 +380,16 @@ const TreeLights = React.memo(({ startEnabled }) => {
   )
 })
 
-function LightBulb({ position, index, activationTime, startEnabled }) {
+function LightBulb({ position, index, startEnabled, starYRef }) { // <--- Added starYRef
   const meshRef = useRef(); 
   const meshRef2 = useRef(); 
   const glowRef = useRef(); 
   const bulbGroupRef = useRef()
   
+  // State to track if this bulb has been turned on
+  const hasActivatedRef = useRef(false)
+  const activationTimeRef = useRef(0)
+
   const glowTex = useMemo(() => createGlowTexture(), [])
   const { localTime, active } = useLocalTime(startEnabled)
 
@@ -379,9 +405,21 @@ function LightBulb({ position, index, activationTime, startEnabled }) {
     if(!active || !meshRef.current?.material || !meshRef2.current?.material) return
     const time = localTime; 
 
-    // --- ACTIVATION LOGIC ---
-    let wakeUp = (time - activationTime) * 2.0; 
-    wakeUp = THREE.MathUtils.clamp(wakeUp, 0, 1);
+    // --- REAL TIME ACTIVATION LOGIC ---
+    // Check if the Star's current Y position (from ref) is higher than this bulb's Y position
+    if (!hasActivatedRef.current && starYRef.current >= position.y) {
+        hasActivatedRef.current = true;
+        activationTimeRef.current = time; // Record the exact moment we turned on
+    }
+
+    // Default to dark
+    let wakeUp = 0;
+
+    // If activated, animate the "wake up" glow
+    if (hasActivatedRef.current) {
+        wakeUp = (time - activationTimeRef.current) * 2.0; 
+        wakeUp = THREE.MathUtils.clamp(wakeUp, 0, 1);
+    }
 
     const twinkle = Math.sin(time * 2.5 + index * 0.8)
     const currentColor = darkColor.clone().lerp(activeColor, wakeUp);
@@ -435,13 +473,15 @@ function LightBulb({ position, index, activationTime, startEnabled }) {
 }
 
 // --- MAIN TREE COMPONENT ---
-// Named Export to match App.jsx import
 export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, startEnabled }) {
   const { scene } = useGLTF('/tree.glb')
   const lastOrnLength = useRef(ornaments.length)
   const introFinished = useRef(false)
   const clickStartPos = useRef({ x: 0, y: 0 })
   const triggerRef = useRef(null)
+
+  // 1. NEW: Create a shared reference for the Star's height
+  const starYRef = useRef(-999) 
 
   const { addNotification } = useNotification()
 
@@ -467,14 +507,11 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
         };
         const distFromCenter = Math.sqrt(localVec.x ** 2 + localVec.z ** 2);
 
-        // 1. HEIGHT CHECK
         if (localVec.y < MIN_HEIGHT_CUTOFF) {
-            // UPDATED: Added type 'error' and uniqueId 'too_low'
             addNotification("Too low! Try hanging your ornament higher on the tree.", "error", "too_low");
             return; 
         }
 
-        // 3. PROXIMITY CHECK (Modified)
         let minDistance = Infinity;
         ornaments.forEach((orn) => {
           const dx = localVec.x - orn.position[0];
@@ -484,12 +521,9 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
           if (dist < minDistance) minDistance = dist;
         });
 
-        // CHANGED: If very close, assume selection and IGNORE placement
         if (minDistance < SELECTION_THRESHOLD) return; 
 
-        // If moderately close, ERROR
         if (minDistance < ORNAMENT_SPACING) {
-            // UPDATED: Added type 'error' and uniqueId 'proximity_error'
             addNotification("Too close to another existing ornament! Try giving it some more space.", "error", "proximity_error");
             return;
         }
@@ -509,9 +543,19 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
 
   return (
     <group dispose={null}>
-      <NeonStar triggerRef={triggerRef} onFlash={() => { introFinished.current = true }} startEnabled={startEnabled} />
+      {/* 2. PASS starYRef to NeonStar (Writer) */}
+      <NeonStar 
+        triggerRef={triggerRef} 
+        onFlash={() => { introFinished.current = true }} 
+        startEnabled={startEnabled} 
+        starYRef={starYRef} 
+      />
+      
       <CelebrationText triggerRef={triggerRef} startEnabled={startEnabled} />
-      <TreeLights startEnabled={startEnabled} />
+      
+      {/* 3. PASS starYRef to TreeLights (Reader) */}
+      <TreeLights startEnabled={startEnabled} starYRef={starYRef} />
+      
       {memoTree}
       
       {ornaments.map((orn) => (

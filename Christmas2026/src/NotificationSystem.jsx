@@ -118,11 +118,15 @@ export function NotificationProvider({ children }) {
     setNotifications(prev => {
       const cleanList = uniqueId ? prev.filter(n => n.uniqueId !== uniqueId) : prev;
       
+      // --- UPDATE HERE: Check type and set duration accordingly ---
+      const duration = type === 'hint' ? 10000 : 5000; 
+
       const newToast = { 
         id: Date.now(), 
         uniqueId: uniqueId, 
         message, 
-        type 
+        type,
+        duration // Pass the calculated duration
       }
       
       return [...cleanList, newToast]

@@ -32,7 +32,7 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     const width = canvasRef.current.width
     const height = canvasRef.current.height
 
-    const x = (1 - uv.x) * width
+    const x = uv.x * width
     const y = uv.y * height 
 
     const drawColor = tool === 'eraser' ? '#FFFFFF' : color
@@ -44,7 +44,7 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     ctx.lineWidth = brushSize
 
     if (lastUV.current) {
-      const lastX = (1 - lastUV.current.x) * width
+      const lastX = lastUV.current.x * width
       const lastY = lastUV.current.y * height
       const dx = Math.abs(x - lastX)
       const dy = Math.abs(y - lastY)
@@ -80,15 +80,11 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
   }
 
   // --- POINTER EVENT HANDLERS ---
-
-  // NEW: Change cursor on hover
   const handlePointerOver = (e) => {
     e.stopPropagation()
-    // Use crosshair for precision tools
     document.body.style.cursor = 'crosshair'
   }
 
-  // NEW: Reset cursor on leave
   const handlePointerOut = (e) => {
     e.stopPropagation()
     document.body.style.cursor = 'auto'
@@ -99,8 +95,6 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     e.stopPropagation() 
     setOrbitEnabled(false) 
     e.target.setPointerCapture(e.pointerId)
-    
-    // Ensure cursor stays crosshair while dragging even if fast
     document.body.style.cursor = 'crosshair'
 
     if (tool === 'bucket') {
@@ -124,17 +118,14 @@ function DrawingSphere({ canvasRef, color, tool, brushSize, setOrbitEnabled, cle
     lastUV.current = null
     e.target.releasePointerCapture(e.pointerId)
     setOrbitEnabled(true) 
-    // Reset cursor (handlePointerOver will catch it again if still hovering)
     document.body.style.cursor = 'auto' 
   }
 
   return (
     <mesh 
       ref={meshRef}
-      // Attach new hover handlers
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
-      // Existing handlers
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -216,7 +207,10 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
 
   // --- STYLES HELPER ---
   const toolButtonStyle = (isActive) => ({
-    flex: 1, padding: '15px', cursor: 'pointer',
+    flex: 1, 
+    // Compact padding on mobile, but big enough to tap
+    padding: isMobile ? '10px' : '15px', 
+    cursor: 'pointer',
     background: isActive ? '#333' : '#1a1a1a',
     color: isActive ? 'white' : '#888',
     border: isActive ? '1px solid #555' : '1px solid #222',
@@ -229,7 +223,9 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
 
   const labelStyle = {
     color: '#666', fontSize: '0.75rem', textTransform: 'uppercase', 
-    letterSpacing: '1px', display: 'block', marginBottom: '10px',
+    letterSpacing: '1px', display: 'block', 
+    // Breathing room
+    marginBottom: '10px',
     fontFamily: 'inherit' 
   }
 
@@ -253,8 +249,8 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
       
       <style>{`
         .overlay-container {
-          width: 900px;
-          height: 600px;
+          width: 1050px;
+          height: 700px;
           display: flex;
           flex-direction: row;
           background: #111;
@@ -264,7 +260,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
           box-shadow: 0 50px 100px -20px rgba(0,0,0,0.8);
         }
         .left-panel {
-          width: 300px;
+          width: 320px;
           padding: 30px;
           background: #161616;
           border-right: 1px solid #333;
@@ -272,15 +268,10 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
           flex-direction: column;
           gap: 25px;
           overflow-y: auto;
-          
-          /* HIDE SCROLLBAR UI */
-          scrollbar-width: none;  /* Firefox */
-          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none; 
+          -ms-overflow-style: none;
         }
-        /* HIDE SCROLLBAR UI (Chrome, Safari) */
-        .left-panel::-webkit-scrollbar {
-          display: none;
-        }
+        .left-panel::-webkit-scrollbar { display: none; }
 
         .right-panel {
           flex: 1;
@@ -297,19 +288,23 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
             flex-direction: column-reverse !important; 
           }
           .left-panel {
-            /* 90% Width and centered */
             width: 90% !important;
             align-self: center !important;
             border-radius: 20px 20px 0 0 !important;
             
-            height: 50% !important;
+            /* Give controls 60% height */
+            height: 60% !important;
+            
             border-right: none !important;
             border-top: 1px solid #333;
+            
+            /* Breathing room in the padding */
             padding: 20px !important;
-            gap: 15px !important;
+            /* Balanced spacing between sections */
+            gap: 15px !important; 
           }
           .right-panel {
-            height: 50% !important;
+            height: 40% !important;
           }
         }
       `}</style>
@@ -318,7 +313,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
         
         {/* LEFT PANEL (TOOLS) */}
         <div className="left-panel">
-          <h2 style={{ margin: 0, color: 'white', fontSize: '1.4rem', fontFamily: 'inherit' }}> Ornament Studio</h2>
+          <h2 style={{ margin: 0, color: 'white', fontSize: isMobile ? '1.2rem' : '1.4rem', fontFamily: 'inherit' }}> Ornament Studio</h2>
 
           {/* TOOLS */}
           <div>
@@ -343,11 +338,11 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
             <label style={labelStyle}>Palette 🎨</label>
             <div style={{ 
               display: 'grid', 
-              /* Desktop: 4 cols. Mobile: 6 cols. */
+              /* CHANGE: 6 columns on Mobile = 2 Rows of 6 items (12 total items) */
               gridTemplateColumns: isMobile ? 'repeat(6, 1fr)' : 'repeat(4, 1fr)', 
-              /* Desktop Gap: 15px. Mobile Gap: 10px */
+              /* Desktop Gap: 15px. Mobile Gap: 10px (Comfortable) */
               gap: isMobile ? '10px' : '15px',
-              width: isMobile ? '100%' : '90%'
+              width: isMobile ? '90%' : '90%'
             }}>
               {PALETTE.map(hex => (
                 <div key={hex} onClick={() => setColor(hex)} style={getPaletteItemStyle(hex)} />
@@ -367,29 +362,40 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
           </div>
 
           {/* MESSAGE */}
-          <div style={{ marginTop: 'auto' }}>
+          <div style={{ marginTop: '10px' }}>
             <label style={labelStyle}>Message</label>
             <input 
               value={message} onChange={(e) => setMessage(e.target.value)} maxLength={50}
               placeholder="Write a wish..."
               style={{ 
-                width: '100%', padding: '12px', background: '#222', border: '1px solid #333', 
+                width: '100%', 
+                // Comfortable input padding
+                padding: '12px', 
+                background: '#222', border: '1px solid #333', 
                 color: 'white', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box'
               }}
             />
-             <p style={{ color: '#555', fontSize: '0.7rem', marginTop: '10px', fontStyle: 'italic', lineHeight: '1.4' }}>
-                ⚠️ Messages are monitored. Inappropriate or harmful content will be removed.
+             <p style={{ color: '#555', fontSize: '0.7rem', marginTop: '5px', fontStyle: 'italic', lineHeight: '1.4' }}>
+                ⚠️ Messages are monitored against inappropriate content.
              </p>
           </div>
 
           {/* SUBMIT BUTTONS */}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '0px' }}>
              <button onClick={onClose} 
-                style={{ flex: 1, background: '#333', color: '#ccc', border: 'none', padding: '15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                style={{ 
+                  flex: 1, background: '#333', color: '#ccc', border: 'none', 
+                  padding: '15px', 
+                  borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' 
+                }}>
                 CANCEL
              </button>
              <button onClick={handleSubmit} disabled={isSubmitting}
-                style={{ flex: 2, background: 'white', color: 'black', border: 'none', padding: '15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', opacity: isSubmitting ? 0.7 : 1 }}>
+                style={{ 
+                  flex: 2, background: 'white', color: 'black', border: 'none', 
+                  padding: '15px', 
+                  borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', opacity: isSubmitting ? 0.7 : 1 
+                }}>
                 {isSubmitting ? 'HANGING...' : 'HANG IT'}
              </button>
           </div>
