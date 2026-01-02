@@ -41,12 +41,12 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
     <div style={{
       position: 'relative',
       width: '400px',
-      maxWidth: '90vw', // Added for mobile safety
+      maxWidth: '90vw', 
       background: bgColor, 
       border: `1px solid ${borderColor}`,
       borderRadius: '12px',
       padding: '16px',
-      marginBottom: '10px', // Spacing between toasts
+      marginBottom: '10px', 
       boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
       display: 'flex',
       alignItems: 'center',

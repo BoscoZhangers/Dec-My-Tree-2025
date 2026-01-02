@@ -71,7 +71,7 @@ export function MusicPlayer() {
         backdropFilter: 'blur(5px)',
         border: '1px solid #333',
         borderRadius: '60px',
-        padding: '20px 25px',
+        padding: '17px 25px',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
