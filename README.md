@@ -41,6 +41,7 @@ The joy is in the details. I engineered custom particle systems to generate:
 To keep the tree looking beautiful, the app uses **Euclidean distance algorithms** to prevent ornaments from clipping into each other or floating in thin air. It feels like magic, but it's math.
 
 // uses AI detection to check for inappropriate messages.
+// ADmin Panel
 ---
 
 ## 🧠 Under the Hood: Engineering Challenges
