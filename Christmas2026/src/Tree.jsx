@@ -3,12 +3,15 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF, Billboard, Line, Text, Points } from '@react-three/drei'
 import * as THREE from 'three'
 import { Ornament } from './Ornament' 
+import { useNotification } from './NotificationSystem'
 
 // --- TUNING CONTROLS ---
-const TREE_BASE_Y = -100;     
-const MIN_HEIGHT_CUTOFF = 40; 
+const TREE_BASE_Y = -100;   
+const MAX_HEIGHT_CUTOFF = 200;  
+const MIN_HEIGHT_CUTOFF = 35; 
 const TRUNK_RADIUS = 5;       
-const ORNAMENT_SPACING = 12;  
+const ORNAMENT_SPACING = 7;  
+const SELECTION_THRESHOLD = 3.5; 
 
 // --- HELPER: LOCAL TIMER HOOK ---
 function useLocalTime(startEnabled) {
@@ -93,14 +96,12 @@ function CelebrationText({ triggerRef, startEnabled }) {
       let { opacity, showSparkle, sparkled } = charState
 
       if (timer.current > 6) {
-        // Fade out logic
         opacity = Math.max(0, opacity - delta * 2)
         if (opacity <= 0 && i === characters.length - 1) {
             timer.current = -1
         }
       } 
       else if (timer.current >= charAppearanceTime) {
-        // Fade in logic
         opacity = Math.min(1, opacity + delta * 6)
         if (opacity >= 0.8 && !sparkled) {
           showSparkle = true
@@ -133,6 +134,9 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
   const totalWidth = charArray.reduce((acc, char) => acc + getCharWidth(char), 0)
   let currentX = -totalWidth / 2 
 
+  // NEW: Elegant Metallic Gold Hex
+  const GOLD_COLOR = "#D4AF37" 
+
   return (
     <group position={[0, yPos, 0]}>
       {charArray.map((char, i) => {
@@ -146,24 +150,20 @@ const renderLine = (charArray, startIndex, yPos, charStates, charRefs) => {
             <Text
               ref={el => charRefs.current[globalIndex] = el}
               fontSize={18}
-              color="#FFD700"
+              color={GOLD_COLOR}  // <--- UPDATED
               font="/GreatVibes-Regular.ttf"
               anchorX="center"
               anchorY="middle"
-              // --- CHANGED: GLOW LOGIC ---
-              // outlineWidth acts as the glow radius (tight to the letter)
               outlineWidth={0.04} 
-              outlineColor="#FFD700"
-              // Sync outline opacity so the glow fades WITH the text
+              outlineColor={GOLD_COLOR} // <--- UPDATED
               outlineOpacity={charStates[globalIndex].opacity}
               raycast={() => null} 
             >
               {char}
-              {/* High emissive intensity makes the core letter bright */}
               <meshStandardMaterial 
-                color="#FFD700"
-                emissive="#FFD700" 
-                emissiveIntensity={2} 
+                color={GOLD_COLOR}    // <--- UPDATED
+                emissive={GOLD_COLOR} // <--- UPDATED
+                emissiveIntensity={1.5} // Reduced slightly from 2 for a softer, more elegant glow
                 toneMapped={false} 
                 transparent 
                 opacity={charStates[globalIndex].opacity} 
@@ -443,6 +443,8 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
   const clickStartPos = useRef({ x: 0, y: 0 })
   const triggerRef = useRef(null)
 
+  const { addNotification } = useNotification()
+
   const memoTree = useMemo(() => (
     <primitive 
       object={scene} 
@@ -465,22 +467,38 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
         };
         const distFromCenter = Math.sqrt(localVec.x ** 2 + localVec.z ** 2);
 
-        if (localVec.y < MIN_HEIGHT_CUTOFF) return; 
-        if (distFromCenter < TRUNK_RADIUS) return; 
+        // 1. HEIGHT CHECK
+        if (localVec.y < MIN_HEIGHT_CUTOFF) {
+            // UPDATED: Added type 'error' and uniqueId 'too_low'
+            addNotification("Too low! Try hanging your ornament higher on the tree.", "error", "too_low");
+            return; 
+        }
 
-        const isTooClose = ornaments.some((orn) => {
+        // 3. PROXIMITY CHECK (Modified)
+        let minDistance = Infinity;
+        ornaments.forEach((orn) => {
           const dx = localVec.x - orn.position[0];
           const dy = localVec.y - orn.position[1];
           const dz = localVec.z - orn.position[2];
-          return Math.sqrt(dx*dx + dy*dy + dz*dz) < ORNAMENT_SPACING;
+          const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+          if (dist < minDistance) minDistance = dist;
         });
-      
-        if (isTooClose) return;
+
+        // CHANGED: If very close, assume selection and IGNORE placement
+        if (minDistance < SELECTION_THRESHOLD) return; 
+
+        // If moderately close, ERROR
+        if (minDistance < ORNAMENT_SPACING) {
+            // UPDATED: Added type 'error' and uniqueId 'proximity_error'
+            addNotification("Too close to another existing ornament! Try giving it some more space.", "error", "proximity_error");
+            return;
+        }
+
         onTreeClick(e.point);
         setActiveId(null);
       }} 
     />
-  ), [scene, ornaments, onTreeClick, setActiveId])
+  ), [scene, ornaments, onTreeClick, setActiveId, addNotification])
 
   useEffect(() => {
     if (ornaments.length > lastOrnLength.current && introFinished.current) {

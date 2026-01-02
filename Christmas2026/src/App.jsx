@@ -1,62 +1,33 @@
 import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber' 
-import { OrbitControls, Environment, Stars, useGLTF, Billboard, Text, useTexture, RoundedBox, Loader, useProgress } from '@react-three/drei'
+import { OrbitControls, Environment, Stars, useGLTF, Loader, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
 import { db } from './firebase' 
-// Import the Named Export from Tree.jsx
 import { Tree } from './Tree' 
 import { Overlay } from './Overlay' 
 import { MusicPlayer } from './MusicPlayer' 
+import { NotificationProvider, useNotification } from './NotificationSystem'
 
 const TREE_POSITION = [0, -100, 0] 
 
-// --- INSTRUCTION HINT ---
-function InstructionHint({ interacted }) {
-  const groupRef = useRef()
-  const [visible, setVisible] = useState(false)
-  const iconTexture = useTexture('/click-icon.png')
+// --- HINT TIMER ---
+// UPDATED: No longer accepts 'interacted' prop. Fires regardless of user action.
+function HintTimer() {
+  const { addNotification } = useNotification()
+  const [hasFired, setHasFired] = useState(false)
 
-  const { width } = useThree((state) => state.size)
-  const isMobile = width < 600
-  const position = isMobile ? [0, 15, -60] : [-160, 20, 0]
-  const scale = isMobile ? 0.35 : 0.7
-  
   useFrame(({ clock }) => {
-    const time = clock.getElapsedTime()
-    if (interacted) {
-      if (visible) setVisible(false)
-    } else if (time > 13.5) {
-      if (!visible) setVisible(true)
-    }
-    if (groupRef.current && visible) {
-      groupRef.current.position.y = position[1] + Math.sin(time * 3) * 3
-      groupRef.current.position.x = position[0]
-      groupRef.current.position.z = position[2]
+    if (hasFired) return
+    
+    // Trigger strictly at 13.5 seconds
+    if (clock.getElapsedTime() > 13.5) {
+      addNotification("Click an empty spot to hang an ornament", "hint", "intro_hint")
+      setHasFired(true)
     }
   })
 
-  if (!visible) return null
-
-  return (
-    <group ref={groupRef} position={position} scale={scale}>
-      <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
-        <group>
-          <RoundedBox args={[42, 42, 1]} radius={6} smoothness={4} position={[-70, 0, -1]}>
-             <meshBasicMaterial color="#FFD700" toneMapped={false} />
-          </RoundedBox>
-          <mesh position={[-70, 0, 0.6]}> 
-             <planeGeometry args={[28, 28]} /> 
-             <meshBasicMaterial map={iconTexture} transparent opacity={1} toneMapped={false} />
-          </mesh>
-          <Text font="/Roboto-Regular.ttf" fontSize={15} maxWidth={180} lineHeight={1.2} color="#FFD700" textAlign="left" anchorX="left" anchorY="middle" position={[-25, 0, 0]}>
-            Click an empty spot to hang an ornament
-            <meshStandardMaterial emissive="#FFD700" emissiveIntensity={0.5} toneMapped={false} />
-          </Text>
-        </group>
-      </Billboard>
-    </group>
-  )
+  return null
 }
 
 // --- CAMERA ANIMATOR ---
@@ -71,7 +42,12 @@ function CameraAnimator({ controlsRef, onFinish, isReady }) {
   }, [isMobile])
 
   const targetLookAt = new THREE.Vector3(0, -20, 0); 
-  const initialState = useRef(null);
+  
+  const startState = useRef({ 
+    pos: new THREE.Vector3(), 
+    target: new THREE.Vector3() 
+  });
+  
   const hasFinishedRef = useRef(false);
   const timeOffset = useRef(null);
 
@@ -83,21 +59,24 @@ function CameraAnimator({ controlsRef, onFinish, isReady }) {
     }
 
     const localTime = state.clock.getElapsedTime() - timeOffset.current;
-    
-    // Animation starts at 8s relative to load finish
     const startTime = 8.0; 
     const duration = 5.0;
 
+    // --- WAITING PHASE ---
     if (localTime < startTime) {
-      if (!initialState.current) {
-        initialState.current = {
-            pos: state.camera.position.clone(),
-            target: controlsRef.current.target.clone() 
-        };
-      }
+      // 1. Keep start state synced with current camera position
+      startState.current.pos.copy(state.camera.position);
+      startState.current.target.copy(controlsRef.current.target);
+      
+      // 2. NEW FIX: Force controls to update even while waiting!
+      // This ensures the camera rotation (LookAt) stays valid after the "Shake" effect.
+      // Without this, the rotation is stale, causing a snap at t=8.0.
+      controlsRef.current.update();
+      
       return; 
     }
 
+    // --- ANIMATION PHASE ---
     let progress = (localTime - startTime) / duration;
 
     if (progress >= 1) {
@@ -110,8 +89,8 @@ function CameraAnimator({ controlsRef, onFinish, isReady }) {
 
     const ease = progress * progress * (3 - 2 * progress);
     
-    state.camera.position.lerpVectors(initialState.current.pos, targetPosition, ease);
-    controlsRef.current.target.lerpVectors(initialState.current.target, targetLookAt, ease);
+    state.camera.position.lerpVectors(startState.current.pos, targetPosition, ease);
+    controlsRef.current.target.lerpVectors(startState.current.target, targetLookAt, ease);
     controlsRef.current.update();
   });
 
@@ -169,22 +148,33 @@ function UnderTreePresents() {
 function Ground() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -102, 0]} receiveShadow>
-      <circleGeometry args={[1000, 64]} />
+      <circleGeometry args={[2000, 64]} />
       <meshStandardMaterial color="#cfdae3" roughness={0.8} metalness={0.1} />
     </mesh>
   )
 }
 
-function BackgroundScenery({ count = 40 }) {
+function BackgroundScenery({ count = 150 }) {
   const items = useMemo(() => {
     const temp = []
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2
-      const radius = 300 + Math.random() * 300
-      temp.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, scale: 1 + Math.random() * 2, type: Math.random() > 0.5 ? 'tree' : 'rock', id: i })
+      
+      // RANGE UPDATED: 350 (min) + 650 (variance) = 350 to 1000 range
+      const radius = 350 + Math.random() * 650 
+
+      temp.push({ 
+        x: Math.cos(angle) * radius, 
+        z: Math.sin(angle) * radius, 
+        scale: 1 + Math.random() * 2, 
+        type: Math.random() > 0.5 ? 'tree' : 'rock', 
+        id: i,
+        rotation: [Math.random(), Math.random(), Math.random()] 
+      })
     }
     return temp
   }, [count])
+
   return (
     <group position={[0, -100, 0]}>
       {items.map((item) => (
@@ -195,7 +185,10 @@ function BackgroundScenery({ count = 40 }) {
                <mesh position={[0, 30, 0]}><coneGeometry args={[15, 40, 4]} /><meshStandardMaterial color="#1a472a" roughness={0.8} /></mesh>
             </group>
           ) : (
-            <mesh position={[0, 5, 0]} rotation={[Math.random(), Math.random(), Math.random()]}><dodecahedronGeometry args={[10, 0]} /><meshStandardMaterial color="#888" roughness={0.9} /></mesh>
+            <mesh position={[0, 5, 0]} rotation={item.rotation}>
+                <dodecahedronGeometry args={[10, 0]} />
+                <meshStandardMaterial color="#888" roughness={0.9} />
+            </mesh>
           )}
         </group>
       ))}
@@ -238,13 +231,12 @@ function Snow({ count = 2000 }) {
 }
 
 // --- MAIN APP COMPONENT ---
-// Default Export used by main.jsx
 export default function App() {
   const [ornaments, setOrnaments] = useState([]) 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [tempPos, setTempPos] = useState(null)
   const [activeId, setActiveId] = useState(null)
-  const [hasInteracted, setHasInteracted] = useState(false)
+  // CHANGED: Removed 'hasInteracted' state as it is no longer used
   const [isLocked, setIsLocked] = useState(true)
 
   const { active } = useProgress()
@@ -286,45 +278,47 @@ export default function App() {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative' }} onPointerDown={() => !hasInteracted && setHasInteracted(true)}>
-      <MusicPlayer />
-      <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
-      <Overlay isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleOrnamentSubmit} initialPos={tempPos} />
+    <NotificationProvider>
+      {/* CHANGED: Removed onPointerDown handler from main div */}
+      <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+        <MusicPlayer />
+        <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
+        <Overlay isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleOrnamentSubmit} initialPos={tempPos} />
 
-      <Canvas camera={{ position: [-180, 200, -250], fov: 70 }} onPointerMissed={() => setActiveId(null)}>
-        <fog attach="fog" args={['#050505', 200, 900]} />
-        <color attach="background" args={['#050505']} />
-        
-        <CameraAnimator controlsRef={controlsRef} onFinish={() => setIsLocked(false)} isReady={isReady} />
+        <Canvas camera={{ position: [-180, 200, -250], fov: 70 }} onPointerMissed={() => setActiveId(null)}>
+          <fog attach="fog" args={['#050505', 200, 900]} />
+          <color attach="background" args={['#050505']} />
+          
+          <CameraAnimator controlsRef={controlsRef} onFinish={() => setIsLocked(false)} isReady={isReady} />
+          
+          {}
+          <HintTimer />
 
-        <Snow count={2000} />
-        <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-        <Moon />
-        <ambientLight intensity={0.5} />
-        <Environment preset="park" />
+          <Snow count={2000} />
+          <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+          <Moon />
+          <ambientLight intensity={0.5} />
+          <Environment preset="park" />
 
-        <Suspense fallback={null}>
-          <group position={TREE_POSITION}> 
-            <Tree onTreeClick={handleTreeClick} ornaments={ornaments} activeId={activeId} setActiveId={setActiveId} startEnabled={isReady} />
-          </group>
-          <UnderTreePresents />
-          <Ground />
-          <BackgroundScenery />
-        </Suspense>
+          <Suspense fallback={null}>
+            <group position={TREE_POSITION}> 
+              <Tree onTreeClick={handleTreeClick} ornaments={ornaments} activeId={activeId} setActiveId={setActiveId} startEnabled={isReady} />
+            </group>
+            <UnderTreePresents />
+            <Ground />
+            <BackgroundScenery />
+          </Suspense>
 
-        <Suspense fallback={null}>
-            <InstructionHint interacted={hasInteracted} />
-        </Suspense>
+          <OrbitControls ref={controlsRef} makeDefault enablePan={false} enabled={!isModalOpen && !isLocked} minDistance={80} maxDistance={400} maxPolarAngle={Math.PI / 2} minPolarAngle={0.6} />
+        </Canvas>
 
-        <OrbitControls ref={controlsRef} makeDefault enablePan={false} enabled={!isModalOpen && !isLocked} minDistance={80} maxDistance={400} maxPolarAngle={Math.PI / 2} minPolarAngle={0.3} />
-      </Canvas>
-
-      <Loader 
-        containerStyles={{ background: '#050505' }}
-        innerStyles={{ width: '300px', background: '#333' }}
-        barStyles={{ background: '#FFD700', height: '10px' }}
-        dataStyles={{ fontSize: '14px', fontFamily: 'Arial', color: '#FFD700' }}
-      />
-    </div>
+        <Loader 
+          containerStyles={{ background: '#050505' }}
+          innerStyles={{ width: '300px', background: '#333' }}
+          barStyles={{ background: '#FFD700', height: '10px' }}
+          dataStyles={{ fontSize: '14px', fontFamily: 'Arial', color: '#FFD700' }}
+        />
+      </div>
+    </NotificationProvider>
   )
 }

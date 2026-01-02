@@ -5,7 +5,39 @@ export function MusicPlayer() {
   const audioRef = useRef(null)
 
   useEffect(() => {
+    // 1. Setup Audio
+    const audio = new Audio('/music.mp3')
+    audio.loop = true
+    audio.volume = 0.4
+    audioRef.current = audio
+
+    // 2. Define the play function
+    const attemptPlay = () => {
+      audio.play()
+        .then(() => {
+          // If successful (browser allowed it), update state
+          setIsPlaying(true)
+          // Clean up the "waiting for click" listeners
+          window.removeEventListener('click', attemptPlay)
+          window.removeEventListener('keydown', attemptPlay)
+        })
+        .catch((error) => {
+          // If blocked, we just stay silent and wait for the next click
+          console.log("Browser blocked autoplay. Waiting for user interaction...")
+        })
+    }
+
+    // 3. Try to play immediately (Works if user has already interacted with domain)
+    attemptPlay()
+
+    // 4. If that failed, try again on the very first click or keypress anywhere
+    window.addEventListener('click', attemptPlay, { once: true })
+    window.addEventListener('keydown', attemptPlay, { once: true })
+
+    // Cleanup
     return () => {
+      window.removeEventListener('click', attemptPlay)
+      window.removeEventListener('keydown', attemptPlay)
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current = null
@@ -13,20 +45,16 @@ export function MusicPlayer() {
     }
   }, [])
 
-  const togglePlay = () => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio('/music.mp3') 
-      audioRef.current.loop = true
-      audioRef.current.volume = 0.4
-    }
+  const togglePlay = (e) => {
+    // Stop the click from propagating to the global listener
+    e.stopPropagation() 
+
+    if (!audioRef.current) return
 
     if (isPlaying) {
       audioRef.current.pause()
     } else {
-      audioRef.current.play().catch(error => {
-        console.error("Playback failed:", error)
-        alert("Audio error: Check that music.mp3 is in the public folder!")
-      })
+      audioRef.current.play().catch(console.error)
     }
     setIsPlaying(!isPlaying)
   }
@@ -35,18 +63,15 @@ export function MusicPlayer() {
     <div 
       onClick={togglePlay}
       style={{
-        /* --- MOBILE POSITIONING FIXES --- */
         position: 'fixed', 
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 30px)', 
-        left: 'calc(env(safe-area-inset-left, 0px) + 20px)',
+        left: 'calc(env(safe-area-inset-left, 0px) + 30px)',
         zIndex: 9999,
-        
-        /* --- RESTORED ORIGINAL STYLING --- */
         background: 'rgba(0,0,0,0.6)',
         backdropFilter: 'blur(5px)',
         border: '1px solid #333',
-        borderRadius: '50px',
-        padding: '10px 15px',
+        borderRadius: '60px',
+        padding: '20px 25px',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
@@ -59,10 +84,10 @@ export function MusicPlayer() {
         boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
       }}
     >
-      <span style={{ fontSize: '1.2rem' }}>
+      <span style={{ fontSize: '1.7rem' }}>
         {isPlaying ? '🔊' : '🔇'}
       </span>
-      <span style={{ fontWeight: 'bold' }}>
+      <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
         {isPlaying ? 'Mute' : 'Play Music'}
       </span>
       
