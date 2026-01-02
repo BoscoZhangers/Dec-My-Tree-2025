@@ -163,9 +163,9 @@ export function NotificationProvider({ children }) {
         }
 
         /* --- DESKTOP OVERRIDES --- */
-        @media (min-width: 420px) {
+        @media (min-width: 470px) {
           .toast-card {
-            width: 420px; 
+            width: 470px; 
             padding: 18px;
           }
           
