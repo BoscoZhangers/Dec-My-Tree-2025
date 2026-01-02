@@ -19,7 +19,7 @@ function HintTimer() {
   useFrame(({ clock }) => {
     if (hasFired) return
     if (clock.getElapsedTime() > 13.5) {
-      addNotification("Click an empty spot to hang an ornament", "hint", "intro_hint")
+      addNotification("Click an empty spot on the tree to hang an ornament", "hint", "intro_hint")
       setHasFired(true)
     }
   })

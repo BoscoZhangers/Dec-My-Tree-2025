@@ -163,18 +163,18 @@ export function NotificationProvider({ children }) {
         }
 
         /* --- DESKTOP OVERRIDES --- */
-        @media (min-width: 550px) {
+        @media (min-width: 420px) {
           .toast-card {
-            width: 550px; 
-            padding: 28px;
+            width: 420px; 
+            padding: 18px;
           }
           
           .toast-title {
-            font-size: 18px; 
+            font-size: 14px; 
           }
 
           .toast-message {
-            font-size: 16px;
+            font-size: 12px;
           }
         }
 

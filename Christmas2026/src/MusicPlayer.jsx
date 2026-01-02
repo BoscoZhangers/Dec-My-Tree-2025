@@ -94,21 +94,21 @@ export function MusicPlayer() {
         }
 
         /* --- 2. DESKTOP OVERRIDES --- */
-        @media (min-width: 768px) {
+        @media (min-width: 600px) {
           .music-player-btn {
-            bottom: 40px;
-            left: 40px;
-            border-radius: 60px;
-            padding: 27px 35px; /* Restored your large padding */
+            bottom: 30px;
+            left: 30px;
+            border-radius: 50px;
+            padding: 20px 33px; 
             gap: 12px;
           }
 
           .music-icon {
-            font-size: 2.2rem; /* Restored your large icon */
+            font-size: 1.4rem; 
           }
 
           .music-text {
-            font-size: 1.5rem; /* Restored your large text */
+            font-size: 1.0rem; /* Restored your large text */
           }
         }
 
