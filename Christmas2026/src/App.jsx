@@ -9,6 +9,17 @@ import { Overlay } from './Overlay'
 import { MusicPlayer } from './MusicPlayer' 
 import { NotificationProvider, useNotification } from './NotificationSystem'
 
+// --- 1. IMPORT AI LIBRARY ---
+import { pipeline, env } from '@xenova/transformers';
+
+// --- CRITICAL CONFIGURATION ---
+// 1. Skip local checks (prevents the <!doctype> error)
+env.allowLocalModels = false;
+// 2. Allow remote (CDN) downloads
+env.allowRemoteModels = true;
+// 3. Disable cache temporarily to fix your specific error loop
+env.useBrowserCache = false; 
+
 const TREE_POSITION = [0, -100, 0] 
 
 // --- HINT TIMER ---
@@ -194,14 +205,9 @@ function Snow({ count = 1000 }) {
   const particlesPosition = useMemo(() => {
     const positions = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      // X and Z: Spread
       positions[i * 3] = (Math.random() - 0.5) * 800; 
-      
-      // FIX: INITIAL SPAWN RANGE = Total Recycle Distance (900)
-      // This ensures that when the first flake hits bottom, the last flake is exactly at the top.
-      // Range: 200 (Start) to 1100 (End). 
+      // Infinite Loop
       positions[i * 3 + 1] = 200 + Math.random() * 900; 
-      
       positions[i * 3 + 2] = (Math.random() - 0.5) * 800;
     }
     return positions
@@ -213,14 +219,10 @@ function Snow({ count = 1000 }) {
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3
-      // Speed
       points.current.geometry.attributes.position.array[i3 + 1] -= 0.7 + Math.random() * 0.3
-      // Wobble
       points.current.geometry.attributes.position.array[i3] += Math.sin(clock.elapsedTime + points.current.geometry.attributes.position.array[i3]) * 0.05
       
-      // FIX: RECYCLE LOGIC
-      // If < -200, move to +700.
-      // The distance (700 - -200) is 900, which matches our spawn range above.
+      // Recycle
       if (points.current.geometry.attributes.position.array[i3 + 1] < -200) {
         points.current.geometry.attributes.position.array[i3 + 1] = 700; 
         points.current.geometry.attributes.position.array[i3] = (Math.random() - 0.5) * 800; 
@@ -238,22 +240,38 @@ function Snow({ count = 1000 }) {
   )
 }
 
-// --- MAIN APP COMPONENT ---
-export default function App() {
+// --- NEW COMPONENT: SceneContent (Contains Logic) ---
+function SceneContent() {
   const [ornaments, setOrnaments] = useState([]) 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [tempPos, setTempPos] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [isLocked, setIsLocked] = useState(true)
-  
-  // STATE: Controls when snow STARTS falling (Mounts component)
   const [snowing, setSnowing] = useState(false)
 
+  // AI & Notification Hook 
+  const classifierRef = useRef(null); 
+  const { addNotification } = useNotification(); 
+
+  const controlsRef = useRef()
   const { active } = useProgress()
   const isReady = !active
 
-  const controlsRef = useRef()
+  // --- 2. AI MODEL LOADING ---
+  useEffect(() => {
+    const loadModel = async () => {
+      try {
+        console.log("Loading AI Model...")
+        classifierRef.current = await pipeline('text-classification', 'Xenova/toxic-bert');
+        console.log("AI Model Ready")
+      } catch (err) {
+        console.error("Failed to load AI model", err);
+      }
+    };
+    loadModel();
+  }, []);
 
+  // --- FIREBASE SYNC ---
   useEffect(() => {
     const q = query(collection(db, "ornaments"), orderBy("createdAt", "asc"))
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -262,7 +280,28 @@ export default function App() {
     return () => unsubscribe()
   }, [])
 
+  // --- SUBMIT HANDLER WITH AI CHECK ---
   const handleOrnamentSubmit = async (data) => {
+    if (!data.message || data.message.trim().length === 0) return;
+
+    // 1. AI MODERATION
+    if (classifierRef.current) {
+        try {
+            const results = await classifierRef.current(data.message);
+            const topResult = results[0];
+            
+            console.log("AI Check:", topResult);
+
+            if (topResult.label === 'toxic' && topResult.score > 0.7) {
+                addNotification("Message flagged as inappropriate by AI. Please be friendly!", "error", "inappropriate");
+                return; 
+            }
+        } catch (e) {
+            console.warn("AI Check skipped due to error", e);
+        }
+    }
+
+    // 2. FIREBASE SAVE
     try {
       await addDoc(collection(db, "ornaments"), {
         position: [tempPos.x, tempPos.y, tempPos.z],
@@ -273,7 +312,11 @@ export default function App() {
       })
       setIsModalOpen(false)
       setTempPos(null)
-    } catch (e) { console.error("Error adding document: ", e) }
+      addNotification("Ornament hung successfully!", "success", "successful_hang")
+    } catch (e) { 
+      console.error("Error adding document: ", e)
+      addNotification("Error hanging ornament", "error", "unknown error")
+    }
   }
 
   const handleDelete = async (id) => {
@@ -288,8 +331,7 @@ export default function App() {
   }
 
   return (
-    <NotificationProvider>
-      <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
         <MusicPlayer />
         <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
         <Overlay isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleOrnamentSubmit} initialPos={tempPos} />
@@ -302,7 +344,6 @@ export default function App() {
           
           <HintTimer />
 
-          {/* TRIGGER: Snow starts falling immediately from Top when triggered */}
           {snowing && <Snow count={1000} />}
           
           <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
@@ -335,7 +376,15 @@ export default function App() {
           barStyles={{ background: '#FFD700', height: '10px' }}
           dataStyles={{ fontSize: '14px', fontFamily: 'Arial', color: '#FFD700' }}
         />
-      </div>
+    </div>
+  )
+}
+
+// --- MAIN APP COMPONENT (The Shell) ---
+export default function App() {
+  return (
+    <NotificationProvider>
+      <SceneContent />
     </NotificationProvider>
   )
 }

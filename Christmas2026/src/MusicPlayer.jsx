@@ -99,7 +99,7 @@ export function MusicPlayer() {
             bottom: 30px;
             left: 30px;
             border-radius: 50px;
-            padding: 20px 33px; 
+            padding: 15px 27px; 
             gap: 12px;
           }
 

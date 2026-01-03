@@ -10,24 +10,57 @@ export function useNotification() {
 function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
   const [isExiting, setIsExiting] = useState(false)
 
-  const isHint = type === 'hint'
-  
-  // Colors
-  const bgColor = isHint ? 'rgba(5, 20, 5, 0.95)' : 'rgba(20, 5, 5, 0.95)'
-  const borderColor = isHint ? 'rgba(50, 255, 100, 0.3)' : 'rgba(255, 50, 50, 0.2)'
-  const iconBg = isHint ? 'rgba(50, 255, 100, 0.2)' : 'rgba(255, 80, 80, 0.2)'
-  const iconColor = isHint ? '#50ff64' : '#ff5050'
-  const progressColor = isHint ? '#50ff64' : '#ff5050'
-  
-  const iconContent = isHint ? (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-      <path d="M9 18h6" />
-      <path d="M10 22h4" />
-    </svg>
-  ) : '!'
+  // --- THEME CONFIGURATION ---
+  const themes = {
+    hint: {
+      bgColor: 'rgba(20, 18, 5, 0.95)',      // Dark Yellow/Brown background
+      borderColor: 'rgba(255, 215, 0, 0.3)', // Gold border
+      iconBg: 'rgba(255, 215, 0, 0.15)',     // Gold icon background
+      color: '#FFD700',                      // Gold text/icon
+      title: 'Hang an Ornament',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <g transform="translate(12, 12) scale(0.6) translate(-12, -12)">
+            <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+            <path d="M9 18h6" />
+            <path d="M10 22h4" />
+          </g>
+        </svg>
+      )
+    },
+    success: {
+      bgColor: 'rgba(5, 20, 5, 0.95)',       // Dark Green background
+      borderColor: 'rgba(50, 255, 100, 0.3)',// Green border
+      iconBg: 'rgba(50, 255, 100, 0.15)',    // Green icon background
+      color: '#50ff64',                      // Green text/icon
+      title: 'Success',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          {/* Checkmark centered */}
+          <polyline points="8 12 11 15 16 9" />
+        </svg>
+      )
+    },
+    error: {
+      bgColor: 'rgba(20, 5, 5, 0.95)',       // Dark Red background
+      borderColor: 'rgba(255, 50, 50, 0.2)', // Red border
+      iconBg: 'rgba(255, 80, 80, 0.15)',     // Red icon background
+      color: '#ff5050',                      // Red text/icon
+      title: 'Something went wrong',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      )
+    }
+  }
 
-  const titleText = isHint ? 'Hang an Ornament' : 'Could Not Hang Ornament'
+  // Select theme based on type, fallback to error
+  const theme = themes[type] || themes.error;
 
   useEffect(() => {
     const timer = setTimeout(() => handleClose(), duration)
@@ -43,26 +76,28 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
     <div 
       className="toast-card" 
       style={{
-        background: bgColor, 
-        border: `1px solid ${borderColor}`,
+        background: theme.bgColor, 
+        border: `1px solid ${theme.borderColor}`,
         opacity: isExiting ? 0 : 1,
         transform: isExiting ? 'scale(0.9)' : 'scale(1)', 
       }}
     >
-      {/* ICON */}
+      {/* ICON CONTAINER */}
       <div style={{
-        minWidth: '42px', height: '42px', borderRadius: '50%',
-        background: iconBg, color: iconColor,
+        minWidth: '42px', height: '42px', 
+        borderRadius: '12px', 
+        background: theme.iconBg, 
+        color: theme.color,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 'bold', fontSize: '20px', flexShrink: 0
+        flexShrink: 0
       }}>
-        {iconContent}
+        {theme.icon}
       </div>
 
       {/* TEXT */}
       <div style={{ flex: 1 }}>
         <div className="toast-title">
-          {titleText}
+          {theme.title}
         </div>
         <div className="toast-message">
           {message}
@@ -75,7 +110,7 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
       {/* PROGRESS BAR */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, height: '3px',
-        background: progressColor, width: '100%',
+        background: theme.color, width: '100%',
         animation: `progress ${duration}ms linear forwards`
       }} />
     </div>
@@ -89,7 +124,10 @@ export function NotificationProvider({ children }) {
   const addNotification = useCallback((message, type = 'error', uniqueId = null) => {
     setNotifications(prev => {
       const cleanList = uniqueId ? prev.filter(n => n.uniqueId !== uniqueId) : prev;
+      
+      // Hints stay longer (10s), Errors/Success fade faster (5s)
       const duration = type === 'hint' ? 10000 : 5000; 
+      
       const newToast = { id: Date.now(), uniqueId, message, type, duration }
       return [...cleanList, newToast]
     })
@@ -120,9 +158,9 @@ export function NotificationProvider({ children }) {
         /* MOBILE DEFAULTS */
         .toast-card {
           position: relative;
-          width: 85vw; /* Responsive on Mobile */
+          width: 85vw; 
           max-width: 550px; 
-          border-radius: 12px;
+          border-radius: 16px; 
           padding: 16px;
           margin-bottom: 10px;
           box-shadow: 0 4px 20px rgba(0,0,0,0.5);
@@ -130,20 +168,21 @@ export function NotificationProvider({ children }) {
           align-items: center;
           gap: 15px;
           color: #fff;
-          font-family: Arial, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
           overflow: hidden;
           pointer-events: auto;
         }
 
         .toast-title {
-          font-weight: bold;
-          font-size: 16px;
-          margin-bottom: 4px;
+          font-weight: 700;
+          font-size: 14px;
+          margin-bottom: 2px;
+          letter-spacing: -0.01em;
         }
 
         .toast-message {
-          font-size: 14px;
+          font-size: 12px;
           color: #ccc;
           line-height: 1.4;
         }
@@ -155,6 +194,11 @@ export function NotificationProvider({ children }) {
           cursor: pointer;
           font-size: 18px;
           padding: 4px;
+          opacity: 0.7;
+          transition: opacity 0.2s;
+        }
+        .toast-close:hover {
+          opacity: 1;
         }
 
         @keyframes progress {
@@ -163,18 +207,10 @@ export function NotificationProvider({ children }) {
         }
 
         /* --- DESKTOP OVERRIDES --- */
-        @media (min-width: 470px) {
+        @media (min-width: 420px) {
           .toast-card {
-            width: 470px; 
-            padding: 18px;
-          }
-          
-          .toast-title {
-            font-size: 14px; 
-          }
-
-          .toast-message {
-            font-size: 12px;
+            width: 420px; 
+            padding: 17px;
           }
         }
 
