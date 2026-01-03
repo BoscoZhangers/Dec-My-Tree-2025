@@ -1,6 +1,6 @@
 import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber' 
-import { OrbitControls, Environment, Stars, useGLTF, Loader, useProgress } from '@react-three/drei'
+import { OrbitControls, Environment, Stars, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
 import { db } from './firebase' 
@@ -8,38 +8,108 @@ import { Tree } from './Tree'
 import { Overlay } from './Overlay' 
 import { MusicPlayer } from './MusicPlayer' 
 import { NotificationProvider, useNotification } from './NotificationSystem'
-
-// --- 1. IMPORT AI LIBRARY ---
 import { pipeline, env } from '@xenova/transformers';
 
-// --- CRITICAL CONFIGURATION ---
-// 1. Skip local checks (prevents the <!doctype> error)
+// --- CONFIGURATION ---
 env.allowLocalModels = false;
-// 2. Allow remote (CDN) downloads
 env.allowRemoteModels = true;
-// 3. Disable cache temporarily to fix your specific error loop
 env.useBrowserCache = false; 
 
 const TREE_POSITION = [0, -100, 0] 
 
+// --- CUSTOM LOADER (Updated with Button) ---
+function CustomLoader({ progress, fading, onStart }) {
+  const isFinished = progress >= 100
+
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+      background: '#050505',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      zIndex: 9999, 
+      transition: 'opacity 1s ease-out',
+      opacity: fading ? 0 : 1,
+      pointerEvents: 'none' // Container ignores clicks
+    }}>
+      <div style={{ 
+        width: '120px', height: '120px', 
+        backgroundImage: 'url(/tree-favicon.svg)', 
+        backgroundRepeat: 'no-repeat', backgroundPosition: 'center', backgroundSize: 'contain',
+        marginBottom: '20px', opacity: 0.9
+      }} />
+
+      <h1 style={{
+        color: '#ffffff', fontFamily: 'sans-serif', fontSize: '14px',           
+        fontWeight: '600', letterSpacing: '0.3em', textTransform: 'uppercase', 
+        margin: '0 0 25px 0', opacity: 0.8
+      }}>
+        Dec My Tree 2025
+      </h1>
+
+      {/* CONDITIONAL: Show Bar if loading, Show Button if finished */}
+      {!isFinished ? (
+        <>
+          <div style={{ width: '200px', height: '2px', background: '#222', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ 
+              height: '100%', background: '#FFD700', width: `${progress}%`, transition: 'width 0.1s linear'
+            }} />
+          </div>
+          <div style={{ marginTop: '12px', color: '#666', fontFamily: 'monospace', fontSize: '12px' }}>
+            {progress.toFixed(0)}%
+          </div>
+        </>
+      ) : (
+        <button 
+          onClick={onStart}
+          style={{
+            marginTop: '10px',
+            padding: '12px 35px',
+            background: 'transparent',
+            border: '1px solid #FFD700',
+            color: '#FFD700',
+            fontFamily: 'sans-serif',
+            fontSize: '14px',
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            pointerEvents: 'auto', // Button MUST accept clicks
+            transition: 'all 0.3s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = '#FFD700'
+            e.target.style.color = '#000000'
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = 'transparent'
+            e.target.style.color = '#FFD700'
+          }}
+        >
+          Enter
+        </button>
+      )}
+    </div>
+  )
+}
+
 // --- HINT TIMER ---
-function HintTimer() {
+function HintTimer({ isReady }) {
   const { addNotification } = useNotification()
   const [hasFired, setHasFired] = useState(false)
+  const startTime = useRef(null) 
 
   useFrame(({ clock }) => {
-    if (hasFired) return
-    if (clock.getElapsedTime() > 13.5) {
+    if (hasFired || !isReady) return
+    if (startTime.current === null) startTime.current = clock.getElapsedTime()
+    if (clock.getElapsedTime() - startTime.current > 13.5) {
       addNotification("Click an empty spot on the tree to hang an ornament", "hint", "intro_hint")
       setHasFired(true)
     }
   })
-
   return null
 }
 
 // --- CAMERA ANIMATOR ---
-function CameraAnimator({ controlsRef, onFinish, isReady }) {
+function CameraAnimator({ controlsRef, onFinish, shouldStart }) { 
   const { width } = useThree((state) => state.size)
   const isMobile = width < 600
 
@@ -50,34 +120,24 @@ function CameraAnimator({ controlsRef, onFinish, isReady }) {
   }, [isMobile])
 
   const targetLookAt = new THREE.Vector3(0, -20, 0); 
-  
-  const startState = useRef({ 
-    pos: new THREE.Vector3(), 
-    target: new THREE.Vector3() 
-  });
-  
+  const startState = useRef({ pos: new THREE.Vector3(), target: new THREE.Vector3() });
   const hasFinishedRef = useRef(false);
   const timeOffset = useRef(null);
 
   useFrame((state) => {
-    if (!controlsRef.current || !isReady) return;
+    if (!controlsRef.current || !shouldStart) return;
 
     if (timeOffset.current === null) {
         timeOffset.current = state.clock.getElapsedTime();
+        startState.current.pos.copy(state.camera.position);
+        startState.current.target.copy(controlsRef.current.target);
     }
 
     const localTime = state.clock.getElapsedTime() - timeOffset.current;
-    const startTime = 8.0; 
+    
     const duration = 5.0;
 
-    if (localTime < startTime) {
-      startState.current.pos.copy(state.camera.position);
-      startState.current.target.copy(controlsRef.current.target);
-      controlsRef.current.update();
-      return; 
-    }
-
-    let progress = (localTime - startTime) / duration;
+    let progress = localTime / duration;
 
     if (progress >= 1) {
       if (!hasFinishedRef.current) {
@@ -160,7 +220,6 @@ function BackgroundScenery({ count = 150 }) {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2
       const radius = 350 + Math.random() * 650 
-
       temp.push({ 
         x: Math.cos(angle) * radius, 
         z: Math.sin(angle) * radius, 
@@ -206,7 +265,6 @@ function Snow({ count = 1000 }) {
     const positions = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
       positions[i * 3] = (Math.random() - 0.5) * 800; 
-      // Infinite Loop
       positions[i * 3 + 1] = 200 + Math.random() * 900; 
       positions[i * 3 + 2] = (Math.random() - 0.5) * 800;
     }
@@ -222,7 +280,6 @@ function Snow({ count = 1000 }) {
       points.current.geometry.attributes.position.array[i3 + 1] -= 0.7 + Math.random() * 0.3
       points.current.geometry.attributes.position.array[i3] += Math.sin(clock.elapsedTime + points.current.geometry.attributes.position.array[i3]) * 0.05
       
-      // Recycle
       if (points.current.geometry.attributes.position.array[i3 + 1] < -200) {
         points.current.geometry.attributes.position.array[i3 + 1] = 700; 
         points.current.geometry.attributes.position.array[i3] = (Math.random() - 0.5) * 800; 
@@ -240,7 +297,7 @@ function Snow({ count = 1000 }) {
   )
 }
 
-// --- NEW COMPONENT: SceneContent (Contains Logic) ---
+// --- SCENE CONTENT ---
 function SceneContent() {
   const [ornaments, setOrnaments] = useState([]) 
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -249,15 +306,47 @@ function SceneContent() {
   const [isLocked, setIsLocked] = useState(true)
   const [snowing, setSnowing] = useState(false)
 
-  // AI & Notification Hook 
+  const [introFinished, setIntroFinished] = useState(false) 
+
   const classifierRef = useRef(null); 
   const { addNotification } = useNotification(); 
-
   const controlsRef = useRef()
-  const { active } = useProgress()
-  const isReady = !active
+  
+  // --- LOADING LOGIC ---
+  const { progress: realProgress } = useProgress()
+  const [visualProgress, setVisualProgress] = useState(0)
+  const [fading, setFading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
-  // --- 2. AI MODEL LOADING ---
+  useEffect(() => {
+    let startTime = Date.now()
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime
+      const timeProgress = Math.min((elapsed / 2000) * 100, 100)
+      const actualVisual = Math.min(timeProgress, realProgress)
+      
+      setVisualProgress(actualVisual)
+
+      if (actualVisual >= 100) {
+        clearInterval(interval)
+        // REMOVED AUTOMATIC FADING
+        // We now wait for the user to click "ENTER"
+      }
+    }, 16) 
+
+    return () => clearInterval(interval)
+  }, [realProgress]) 
+
+  // New handler for the button click
+  const handleStart = () => {
+    setFading(true)
+    setTimeout(() => {
+      setLoaded(true)
+    }, 1000)
+  }
+
+  const isReady = loaded 
+
   useEffect(() => {
     const loadModel = async () => {
       try {
@@ -271,7 +360,6 @@ function SceneContent() {
     loadModel();
   }, []);
 
-  // --- FIREBASE SYNC ---
   useEffect(() => {
     const q = query(collection(db, "ornaments"), orderBy("createdAt", "asc"))
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -280,18 +368,14 @@ function SceneContent() {
     return () => unsubscribe()
   }, [])
 
-  // --- SUBMIT HANDLER WITH AI CHECK ---
   const handleOrnamentSubmit = async (data) => {
     if (!data.message || data.message.trim().length === 0) return;
 
-    // 1. AI MODERATION
     if (classifierRef.current) {
         try {
             const results = await classifierRef.current(data.message);
             const topResult = results[0];
             
-            console.log("AI Check:", topResult);
-
             if (topResult.label === 'toxic' && topResult.score > 0.7) {
                 addNotification("Message flagged as inappropriate by AI. Please be friendly!", "error", "inappropriate");
                 return; 
@@ -301,7 +385,6 @@ function SceneContent() {
         }
     }
 
-    // 2. FIREBASE SAVE
     try {
       await addDoc(collection(db, "ornaments"), {
         position: [tempPos.x, tempPos.y, tempPos.z],
@@ -332,22 +415,23 @@ function SceneContent() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-        <MusicPlayer />
-        <AdminPanel ornaments={ornaments} onDelete={handleDelete} />
+        
+        {isReady && <MusicPlayer />}
+        {isReady && <AdminPanel ornaments={ornaments} onDelete={handleDelete} />}
+        
         <Overlay isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleOrnamentSubmit} initialPos={tempPos} />
 
         <Canvas camera={{ position: [-180, 200, -250], fov: 70 }} onPointerMissed={() => setActiveId(null)}>
           <fog attach="fog" args={['#050505', 200, 900]} />
           <color attach="background" args={['#050505']} />
           
-          <CameraAnimator controlsRef={controlsRef} onFinish={() => setIsLocked(false)} isReady={isReady} />
-          
-          <HintTimer />
+          <CameraAnimator controlsRef={controlsRef} onFinish={() => setIsLocked(false)} shouldStart={introFinished} />
+          <HintTimer isReady={isReady} />
 
           {snowing && <Snow count={1000} />}
-          
           <Stars radius={900} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
           <Moon />
+          
           <ambientLight intensity={0.5} />
           <Environment preset="park" />
 
@@ -360,6 +444,7 @@ function SceneContent() {
                 setActiveId={setActiveId} 
                 startEnabled={isReady}
                 onHalfWay={() => setSnowing(true)} 
+                onAnimationComplete={() => setIntroFinished(true)}
               />
             </group>
             <UnderTreePresents />
@@ -370,17 +455,18 @@ function SceneContent() {
           <OrbitControls ref={controlsRef} makeDefault enablePan={false} enabled={!isModalOpen && !isLocked} minDistance={80} maxDistance={400} maxPolarAngle={Math.PI / 2} minPolarAngle={0.6} />
         </Canvas>
 
-        <Loader 
-          containerStyles={{ background: '#050505' }}
-          innerStyles={{ width: '300px', background: '#333' }}
-          barStyles={{ background: '#FFD700', height: '10px' }}
-          dataStyles={{ fontSize: '14px', fontFamily: 'Arial', color: '#FFD700' }}
-        />
+        {/* LOADING SCREEN: Replaced direct props with state driven props */}
+        {!loaded && (
+            <CustomLoader 
+                progress={visualProgress} 
+                fading={fading} 
+                onStart={handleStart} // Pass the click handler
+            />
+        )}
     </div>
   )
 }
 
-// --- MAIN APP COMPONENT (The Shell) ---
 export default function App() {
   return (
     <NotificationProvider>

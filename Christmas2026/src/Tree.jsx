@@ -5,9 +5,6 @@ import * as THREE from 'three'
 import { Ornament } from './Ornament' 
 import { useNotification } from './NotificationSystem'
 
-// ... (KEEP ALL HELPERS/CONSTANTS/COMPONENTS UNCHANGED UP TO NEONSTAR) ...
-// Copy previous helpers exactly.
-
 // --- TUNING CONTROLS ---
 const TREE_BASE_Y = -100;   
 const MAX_HEIGHT_CUTOFF = 200;  
@@ -69,14 +66,17 @@ function SparkleBurst({ active, position }) {
   )
 }
 
-// --- CELEBRATION COMPONENT ---
-function CelebrationText({ triggerRef, startEnabled }) {
+// --- CELEBRATION COMPONENT (UPDATED LOGIC HERE) ---
+function CelebrationText({ triggerRef, startEnabled, onAnimationComplete }) {
   const line1 = "Merry Christmas".split('')
   const line2 = "2025!!".split('')
   const characters = [...line1, ...line2]
   const charRefs = useRef([])
   const timer = useRef(-1) 
   
+  // Ref to ensure we only trigger camera ONCE
+  const hasTriggeredCamera = useRef(false)
+
   const { localTime, active } = useLocalTime(startEnabled)
   const [charStates, setCharStates] = useState(
     characters.map(() => ({ opacity: 0, showSparkle: false, sparkled: false }))
@@ -94,11 +94,22 @@ function CelebrationText({ triggerRef, startEnabled }) {
     if (timer.current === -1) return
     timer.current += delta
 
+    // --- FIX: TRIGGER CAMERA AFTER TEXT FADES ---
+    // Text starts fading at 6.0s. We trigger at 6.0s so it moves AS it fades.
+    // If you want it strictly AFTER, change 6.0 to 7.0
+    if (timer.current > 2.0 && !hasTriggeredCamera.current) {
+        hasTriggeredCamera.current = true;
+        if (onAnimationComplete) {
+            onAnimationComplete(); 
+        }
+    }
+
     setCharStates(prevStates => prevStates.map((charState, i) => {
       const charAppearanceTime = (2.0 / characters.length) * i
       let { opacity, showSparkle, sparkled } = charState
 
-      if (timer.current > 6) {
+      // When the CelebrationText start fading out
+      if (timer.current > 5) {
         opacity = Math.max(0, opacity - delta * 2)
         if (opacity <= 0 && i === characters.length - 1) {
             timer.current = -1
@@ -218,7 +229,7 @@ function GlowRipple({ texture, color, offset, speed = 0.8, size }) {
   )
 }
 
-// --- NEON STAR ---
+// --- NEON STAR (FIXED CAMERA SHAKE) ---
 function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef, onHalfWay }) { 
   const glowTexture = useMemo(() => createGlowTexture(), [])
   const starRef = useRef()
@@ -227,10 +238,13 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef, onHal
   const phaseRef = useRef('spiraling') 
   const [burstOpacity, setBurstOpacity] = useState(0)
   const shakeTime = useRef(0)
+  
+  // NEW: Track the shake offset so we can undo it every frame
+  const shakeOffset = useRef(new THREE.Vector3(0, 0, 0))
+
   const hasTriggeredFlash = useRef(false)
   const rotationAngle = useRef(0)
   
-  // Track triggered state so we only fire snow once
   const hasTriggeredSnow = useRef(false)
   
   const [trailReady, setTrailReady] = useState(false)
@@ -264,6 +278,11 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef, onHal
   useFrame((state, delta) => {
     if (!starRef.current || !active) return
     
+    // --- FIX STEP 1: RESTORE CAMERA ---
+    // Remove the previous frame's random offset to return camera to "true" position
+    state.camera.position.sub(shakeOffset.current)
+    shakeOffset.current.set(0, 0, 0)
+
     const t = localTime 
 
     if (auraRef.current) {
@@ -296,12 +315,10 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef, onHal
       rotationAngle.current = (rotationAngle.current + delta * 40) % (Math.PI * 2)
       starRef.current.rotation.y = rotationAngle.current
 
-      // --- SPIN PROGRESS LOGIC ---
       const spinDuration = 1.4;
       const timeInSpin = t - 4.0;
       const spinProgress = timeInSpin / spinDuration;
 
-      // Trigger if we are 75% through the spin
       if (spinProgress > 0.99999999 && !hasTriggeredSnow.current) {
           hasTriggeredSnow.current = true;
           if (onHalfWay) onHalfWay(); 
@@ -318,18 +335,28 @@ function NeonStar({ size = 7, triggerRef, onFlash, startEnabled, starYRef, onHal
         setBurstOpacity(1.5) 
         shakeTime.current = 0.4 
         if (triggerRef.current) triggerRef.current()
-        if (onFlash) onFlash() 
+        if (onFlash) onFlash()
       }
     }
     if (burstOpacity > 0) {
       setBurstOpacity(prev => Math.max(0, prev - delta * 2.0))
       if (burstRef.current) burstRef.current.scale.addScalar(delta * 80)
     }
+
+    // --- FIX STEP 2: APPLY TEMPORARY SHAKE ---
     if (shakeTime.current > 0) {
       shakeTime.current -= delta
       const intensity = shakeTime.current * 5 
-      state.camera.position.x += (Math.random() - 0.5) * intensity
-      state.camera.position.y += (Math.random() - 0.5) * intensity
+      
+      // Calculate random offset
+      const xOff = (Math.random() - 0.5) * intensity
+      const yOff = (Math.random() - 0.5) * intensity
+      
+      // Store it in ref
+      shakeOffset.current.set(xOff, yOff, 0)
+      
+      // Apply to camera (only for this frame)
+      state.camera.position.add(shakeOffset.current)
     }
   })
   
@@ -509,8 +536,8 @@ function LightBulb({ position, index, startEnabled, starYRef }) {
   )
 }
 
-// --- MAIN TREE COMPONENT ---
-export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, startEnabled, onHalfWay }) {
+// --- MAIN TREE COMPONENT (UPDATED WIRING) ---
+export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, startEnabled, onHalfWay, onAnimationComplete }) {
   const { scene } = useGLTF('/tree.glb')
   const lastOrnLength = useRef(ornaments.length)
   const introFinished = useRef(false)
@@ -560,7 +587,7 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
         if (minDistance < SELECTION_THRESHOLD) return; 
 
         if (minDistance < ORNAMENT_SPACING) {
-            addNotification("Too close to another existing ornament! Try giving it some more space.", "error", "proximity_error");
+            addNotification("Too close to another existing ornament!", "error", "proximity_error");
             return;
         }
 
@@ -582,18 +609,25 @@ export function Tree({ onTreeClick, ornaments = [], activeId, setActiveId, start
       <NeonStar 
         triggerRef={triggerRef} 
         onFlash={() => { introFinished.current = true }} 
-        onHalfWay={onHalfWay} // Pass trigger down
+        onHalfWay={onHalfWay}
         startEnabled={startEnabled} 
         starYRef={starYRef} 
       />
       
-      <CelebrationText triggerRef={triggerRef} startEnabled={startEnabled} />
+      {/* This is the KEY FIX: 
+        We pass 'onAnimationComplete' here (to the Text), not to NeonStar.
+        The camera will now move ONLY when the text is done (t > 6s).
+      */}
+      <CelebrationText 
+        triggerRef={triggerRef} 
+        startEnabled={startEnabled} 
+        onAnimationComplete={onAnimationComplete}
+      />
       
       <TreeLights startEnabled={startEnabled} starYRef={starYRef} />
       
       {memoTree}
       
-      {/* --- CLEANED MAPPING LOGIC --- */}
       {ornaments.map((orn) => {
         let x = 0, z = 0;
         

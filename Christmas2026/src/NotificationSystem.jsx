@@ -13,10 +13,10 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
   // --- THEME CONFIGURATION ---
   const themes = {
     hint: {
-      bgColor: 'rgba(20, 18, 5, 0.95)',      // Dark Yellow/Brown background
-      borderColor: 'rgba(255, 215, 0, 0.3)', // Gold border
-      iconBg: 'rgba(255, 215, 0, 0.15)',     // Gold icon background
-      color: '#FFD700',                      // Gold text/icon
+      bgColor: 'rgba(20, 18, 5, 0.95)',      
+      borderColor: 'rgba(255, 215, 0, 0.3)', 
+      iconBg: 'rgba(255, 215, 0, 0.15)',     
+      color: '#FFD700',                      
       title: 'Hang an Ornament',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -30,24 +30,23 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
       )
     },
     success: {
-      bgColor: 'rgba(5, 20, 5, 0.95)',       // Dark Green background
-      borderColor: 'rgba(50, 255, 100, 0.3)',// Green border
-      iconBg: 'rgba(50, 255, 100, 0.15)',    // Green icon background
-      color: '#50ff64',                      // Green text/icon
+      bgColor: 'rgba(5, 20, 5, 0.95)',       
+      borderColor: 'rgba(50, 255, 100, 0.3)',
+      iconBg: 'rgba(50, 255, 100, 0.15)',    
+      color: '#50ff64',                      
       title: 'Success',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
-          {/* Checkmark centered */}
           <polyline points="8 12 11 15 16 9" />
         </svg>
       )
     },
     error: {
-      bgColor: 'rgba(20, 5, 5, 0.95)',       // Dark Red background
-      borderColor: 'rgba(255, 50, 50, 0.2)', // Red border
-      iconBg: 'rgba(255, 80, 80, 0.15)',     // Red icon background
-      color: '#ff5050',                      // Red text/icon
+      bgColor: 'rgba(20, 5, 5, 0.95)',       
+      borderColor: 'rgba(255, 50, 50, 0.2)', 
+      iconBg: 'rgba(255, 80, 80, 0.15)',     
+      color: '#ff5050',                      
       title: 'Something went wrong',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -59,7 +58,6 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
     }
   }
 
-  // Select theme based on type, fallback to error
   const theme = themes[type] || themes.error;
 
   useEffect(() => {
@@ -82,7 +80,6 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
         transform: isExiting ? 'scale(0.9)' : 'scale(1)', 
       }}
     >
-      {/* ICON CONTAINER */}
       <div style={{
         minWidth: '42px', height: '42px', 
         borderRadius: '12px', 
@@ -94,7 +91,6 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
         {theme.icon}
       </div>
 
-      {/* TEXT */}
       <div style={{ flex: 1 }}>
         <div className="toast-title">
           {theme.title}
@@ -104,10 +100,8 @@ function Toast({ id, message, type = 'error', duration = 5000, onClose }) {
         </div>
       </div>
 
-      {/* CLOSE BUTTON */}
       <button onClick={handleClose} className="toast-close">✕</button>
 
-      {/* PROGRESS BAR */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, height: '3px',
         background: theme.color, width: '100%',
@@ -124,10 +118,7 @@ export function NotificationProvider({ children }) {
   const addNotification = useCallback((message, type = 'error', uniqueId = null) => {
     setNotifications(prev => {
       const cleanList = uniqueId ? prev.filter(n => n.uniqueId !== uniqueId) : prev;
-      
-      // Hints stay longer (10s), Errors/Success fade faster (5s)
       const duration = type === 'hint' ? 10000 : 5000; 
-      
       const newToast = { id: Date.now(), uniqueId, message, type, duration }
       return [...cleanList, newToast]
     })
@@ -149,17 +140,19 @@ export function NotificationProvider({ children }) {
           z-index: 9999;
           display: flex;
           pointer-events: none;
+          /* DESKTOP DEFAULT: Bottom Right */
           flex-direction: column;
           align-items: flex-end;
           bottom: 20px;
           right: 20px;
         }
 
-        /* MOBILE DEFAULTS */
         .toast-card {
           position: relative;
-          width: 85vw; 
-          max-width: 550px; 
+          
+          /* FIX: Controls width gracefully */
+          width: min(360px, 90vw); 
+          
           border-radius: 16px; 
           padding: 16px;
           margin-bottom: 10px;
@@ -177,7 +170,7 @@ export function NotificationProvider({ children }) {
         .toast-title {
           font-weight: 700;
           font-size: 14px;
-          margin-bottom: 2px;
+          margin-bottom: 4px;
           letter-spacing: -0.01em;
         }
 
@@ -207,9 +200,9 @@ export function NotificationProvider({ children }) {
         }
 
         /* --- DESKTOP OVERRIDES --- */
-        @media (min-width: 420px) {
+        @media (min-width: 600px) {
           .toast-card {
-            width: 420px; 
+            width: 420px; /* Fixed wider width for desktop */
             padding: 17px;
           }
         }
@@ -217,11 +210,13 @@ export function NotificationProvider({ children }) {
         /* --- MOBILE CONTAINER OVERRIDES --- */
         @media (max-width: 600px) {
           .notification-container {
+            /* FORCE TOP POSITIONING ON MOBILE */
             bottom: auto;   
             top: 20px;      
-            left: 0; right: 0;       
-            align-items: center; 
-            flex-direction: column-reverse; 
+            left: 0; 
+            right: 0;       
+            align-items: center; /* Center horizontally */
+            flex-direction: column-reverse; /* Stack new ones at the top */
           }
         }
       `}</style>

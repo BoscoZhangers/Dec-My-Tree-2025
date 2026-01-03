@@ -227,7 +227,6 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
   const labelStyle = {
     color: '#666', fontSize: '0.75rem', textTransform: 'uppercase', 
     letterSpacing: '1px', display: 'block', 
-    // Breathing room
     marginBottom: '10px',
     fontFamily: 'inherit' 
   }
@@ -253,7 +252,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
       <style>{`
         .overlay-container {
           width: 1050px;
-          height: 700px;
+          height: 665px;
           display: flex;
           flex-direction: row;
           background: #111;
@@ -384,7 +383,7 @@ export function Overlay({ isOpen, onClose, onSubmit }) {
           </div>
 
           {/* SUBMIT BUTTONS */}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '0px' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '-13px' }}>
              <button onClick={onClose} 
                 style={{ 
                   flex: 1, background: '#333', color: '#ccc', border: 'none', 
