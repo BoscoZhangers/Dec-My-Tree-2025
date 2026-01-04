@@ -8,13 +8,15 @@
 
 <div align = "center"> A real-time, global celebration where code meets Christmas spirit. </div>
 
+<br>
 
+## Overview
 
 The 3D Interactive Christmas Tree is a shared digital gathering space that allows users from anywhere in the world to leave their mark on a synchronized, 3D Tree. 
 
 Built to replicate the joy and festivity of decorating a tree with friends, this application uses high-performance 3D rendering to create a magical, glowing environment where every ornament placed by a user is instantly visible to everyone else, creating a living piece of collaborative art.
 
----
+<br>
 
 ## 🛠 Tech Stack
 
@@ -23,7 +25,7 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 * **Backend/Database:** Firebase Firestore (Real-time NoSQL)
 * **Hosting:** Vercel
 
----
+<br>
 
 ## ✨ Features: The Magic
 
@@ -43,8 +45,9 @@ The joy is in the details. I engineered custom particle systems to generate:
 To keep the tree looking beautiful, the app uses **Euclidean distance algorithms** to prevent ornaments from clipping into each other or floating in thin air. It feels like magic, but it's math.
 
 // uses AI detection to check for inappropriate messages.
-// ADmin Panel
----
+// Admin Panel
+
+<br>
 
 ## 🧠 Under the Hood: Engineering Challenges
 
