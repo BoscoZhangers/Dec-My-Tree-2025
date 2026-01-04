@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="public/tree-favicon.svg" width="200" />
+</div>
+
 <h1 align = "center">
     Dec My Tree 2025
 </h1>
