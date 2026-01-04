@@ -9,7 +9,6 @@
 <div align = "center"> A real-time, global celebration where code meets Christmas spirit. </div>
 
 
-![Project Screenshot](./screenshot.png)
 
 The 3D Interactive Christmas Tree is a shared digital gathering space that allows users from anywhere in the world to leave their mark on a synchronized, 3D Tree. 
 
