@@ -73,7 +73,7 @@ While the frontend is festive, the backend is robust. Here are the technical hur
 
 **The Solution:** Implemented **Firestore Security Rules** to create an "Append-Only" architecture. The backend strictly separates `read` (public), `create` (rate-limited), and `delete` (admin only) permissions, ensuring the tree remains a safe space for everyone.
 
----
+
 
 ## 💻 Local Setup
 
@@ -101,7 +101,7 @@ While the frontend is festive, the backend is robust. Here are the technical hur
     npm run dev
     ```
 
----
+
 
 ## © Copyright
 Copyright (c) 2025 Bosco Zhang. All Rights Reserved.
