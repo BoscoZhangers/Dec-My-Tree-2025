@@ -14,7 +14,7 @@
 
 The 3D Interactive Christmas Tree is a shared digital gathering space that allows users from anywhere in the world to leave their mark on a synchronized, 3D Tree. 
 
-Built to replicate the joy and festivity of decorating a tree with friends, this application uses high-performance 3D rendering to create a magical, glowing environment where every ornament placed by a user is instantly visible to everyone else, creating a living piece of collaborative art.
+Built to replicate the joy and festivity of decorating a tree with friends, this application uses high-performance 3D rendering to create a magical environment where every ornament placed by a user is instantly visible to everyone else, creating a living piece of collaborative art.
 
 <br>
 
