@@ -157,21 +157,48 @@ function CameraAnimator({ controlsRef, onFinish, shouldStart }) {
   return null;
 }
 
-// --- STANDARD COMPONENTS ---
 function AdminPanel({ ornaments, onDelete }) {
   const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true'
   if (!isAdmin) return null
   return (
-    <div style={{ position: 'absolute', top: 20, right: 20, width: '300px', maxHeight: '80vh', overflowY: 'auto', background: 'rgba(0,0,0,0.8)', color: 'white', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #444' }}>
-      <h3 style={{ marginTop: 0 }}>🎄 Admin Moderation</h3>
-      <p style={{ fontSize: '12px', color: '#aaa' }}>{ornaments.length} ornaments active</p>
+    <div style={{ 
+      position: 'absolute', 
+      top: 20, 
+      right: 20, 
+      width: '300px', 
+      maxHeight: '80vh', 
+      overflowY: 'auto', 
+      background: 'rgba(0,0,0,0.8)', 
+      color: 'white', 
+      padding: '20px', 
+      borderRadius: '8px', 
+      zIndex: 1000, 
+      border: '1px solid #444',
+      
+      // --- NEW SCROLLBAR STYLES ---
+      scrollbarWidth: 'thin',             // Makes scrollbar thinner (Firefox/Chrome)
+      scrollbarColor: '#666 transparent'  // Thumb color (grey) | Track color (transparent)
+    }}>
+      <h3 style={{ marginTop: 0 }}>🔧 Admin Moderation</h3>
+      <p style={{ fontSize: '12px', marginTop: -15, color: '#aaa' }}>{ornaments.length} active ornaments </p>
       {ornaments.map((orn) => (
         <div key={orn.id} style={{ borderBottom: '1px solid #333', padding: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{orn.message || "No message"}</div>
-            <div style={{ fontSize: '10px', color: '#888' }}>Color: <span style={{ color: orn.color }}>●</span> {orn.id.slice(0, 8)}...</div>
+          
+          <div style={{ flex: 1, minWidth: 0, marginRight: '10px' }}>
+            <div style={{ 
+                fontWeight: 'bold', 
+                fontSize: '14px',
+                whiteSpace: 'pre-wrap',    
+                wordWrap: 'break-word',    
+                overflowWrap: 'break-word' 
+            }}>
+                {orn.message || "No message"}
+            </div>
+            
+            <div style={{ fontSize: '10px', color: '#888' }}>ID: {orn.id.slice(0, 8)}...</div>
           </div>
-          <button onClick={() => onDelete(orn.id)} style={{ background: '#ff4444', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Del</button>
+
+          <button onClick={() => onDelete(orn.id)} style={{ background: '#ff4444', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0 }}>Remove</button>
         </div>
       ))}
     </div>
