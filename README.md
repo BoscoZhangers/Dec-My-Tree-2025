@@ -38,7 +38,7 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
     Users can personalize their contribution by selecting unique ornament colors and customizing it to their personal touch, as well as writing custom messages to leave their mark on the holiday season.
 
 * **Admin Moderation**
-    Admins and devs can use a special URL set with '?admin=true" to obtain access to an admin panel that allows quick and easy removal of ornaments via direct database interaction. Certain security measures ca be easily adapted, such as restricting the access to certain users. Currently, this admin feature has been patched from making any permanent changes to the database for demo purposes. 
+    Admins and devs can use a special URL set with '?admin=true" to obtain access to an admin panel that allows quick and easy removal of ornaments via direct database interaction. 
   
 * **Responsive & Mobile Accessible**
     The experience features adaptive camera animations that adjust automatically for mobile and desktop screens, ensuring a smooth experience on any device.
