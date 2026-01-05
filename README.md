@@ -25,26 +25,27 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 
 ## Features
 
-* **🎄 Interactive 3D World**
+* **Interactive 3D World**
     A fully immersive scene built with **React Three Fiber**. Users can pan, zoom, and rotate around the tree to find the perfect spot for their ornament. The environment features dynamic lighting, a glowing moon, and falling snow.
 
-* **⚡ Real-Time Collaboration**
+* **Real-Time Collaboration**
     Powered by **Firebase Firestore**, the tree updates instantly. When users hang ornaments onto the tree, the state is synchronized in millieconds; anyone from across the globe will see this change instantaneously. 
 
-* **🤖 AI-Powered Safety & Moderation**
+* **AI-Powered Safety & Moderation**
     Integrated **Xenova Transformers** (BERT models) run directly in the browser to analyze user messages, flagging and blocking inappropriate or harmful content before it ever reaches the database.
 
-* **🎨 Customization**
+* **Customization**
     Users can personalize their contribution by selecting unique ornament colors and customizing it to their personal touch, as well as writing custom messages to leave their mark on the holiday season.
 
-* **📱 Responsive & Accessible**
+* **Admin Moderation**
+    Admins and devs can use a special URL set with '?admin=true" to obtain access to an admin panel that allows quick and easy removal of ornaments via direct database interaction. Certain security measures ca be easily adapted, such as restricting the access to certain users. Currently, this admin feature has been patched from making any permanent changes to the database for demo purposes. 
+  
+* **Responsive & Mobile Accessible**
     The experience features adaptive camera animations that adjust automatically for mobile and desktop screens, ensuring a smooth experience on any device.
 
-* **🎵 Atmospheric Audio**
+* **Atmospheric Audio**
     Includes a built-in music player to set the mood, complete with fade-in effects and playback controls.
   
-* **
-
 <br>
 
 ## 🛠 Tech Stack
@@ -55,34 +56,6 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 * **Hosting:** Vercel
 
 <br>
-
-## 🧠 Under the Hood: Engineering Challenges
-
-While the frontend is festive, the backend is robust. Here are the technical hurdles I solved to make this work:
-
-### 1. Coordinate Space Transformation (World vs. Local)
-**The Challenge:** The 3D tree model renders at a specific offset (`y: -100`). Three.js raycasting returns **World Coordinates** (where the camera sees the click), but the scene graph requires **Local Coordinates** relative to the tree's origin for ornaments to "stick" correctly during rotation.
-
-**The Solution:** I implemented a vector transformation pipeline that translates and normalizes the raycast hit point into the tree's local space before committing to the database.
-
-### 2. Interaction Heuristics (Drag vs. Click)
-**The Challenge:** Users attempting to rotate the camera (OrbitControls) would inadvertently trigger "click" events, placing unwanted ornaments.
-
-**The Solution:** I engineered a heuristic that tracks pointer velocity and distance. By calculating the delta between `pointerDown` and `pointerUp` events, the system distinguishes between an intentional click (delta < 10px) and a camera drag operation.
-
-### 3. Rendering Optimization & Custom Kerning
-**The Challenge:** Standard 3D text rendering caused overlapping characters for variable-width cursive fonts, and thousands of particles caused frame drops.
-
-**The Solution:**
-* **Manual Kerning Engine:** Wrote a custom character-spacing function that dynamically calculates offsets based on specific glyph widths (e.g., giving 'M' more space than 'i').
-* **Ref-Based Animation:** Utilized `useRef` and direct DOM mutation within the Three.js render loop (`useFrame`) to animate particles at 60FPS without triggering React reconciliation cycles.
-
-### 4. Database Integrity & Security
-**The Challenge:** Protecting a public-facing database from deletion attacks or spam bots.
-
-**The Solution:** Implemented **Firestore Security Rules** to create an "Append-Only" architecture. The backend strictly separates `read` (public), `create` (rate-limited), and `delete` (admin only) permissions, ensuring the tree remains a safe space for everyone.
-
-
 
 ## 💻 Local Development
 
