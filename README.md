@@ -61,8 +61,8 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 
 1.  **Clone the repository**
     ```bash
-    git clone [https://github.com/your-username/repo-name.git](https://github.com/your-username/repo-name.git)
-    cd repo-name
+    git clone [https://github.com/BoscoZhangers/Dec-My-Tree-2025.git](https://github.com/BoscoZhangers/Dec-My-Tree-2025.git)
+    cd Dec-My-Tree-2025
     ```
 
 2.  **Install dependencies**
@@ -78,7 +78,7 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
     VITE_FIREBASE_PROJECT_ID=your_id
     ```
 
-4.  **Run the celebration**
+4.  **Run**
     ```bash
     npm run dev
     ```
