@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/a580406c-388c-4fa0-9705-1d0ef84719a0
 
 <br>
 
-## Overview
+## 🌎 Overview
 
 The 3D Interactive Christmas Tree is a shared digital gathering space that allows users from anywhere in the world to leave their mark on a synchronized, 3D Tree. 
 
@@ -23,7 +23,7 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 
 <br>
 
-## Features
+## ✨ Features
 
 * **Interactive 3D World**
     A fully immersive scene built with **React Three Fiber**. Users can pan, zoom, and rotate around the tree to find the perfect spot for their ornament. The environment features dynamic lighting, a glowing moon, and falling snow.
