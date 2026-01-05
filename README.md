@@ -23,7 +23,7 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 
 <br>
 
-## ✨ Features
+## Features
 
 * **🎄 Interactive 3D World**
     A fully immersive scene built with **React Three Fiber**. Users can pan, zoom, and rotate around the tree to find the perfect spot for their ornament. The environment features dynamic lighting, a glowing moon, and falling snow.
