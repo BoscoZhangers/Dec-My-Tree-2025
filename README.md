@@ -13,11 +13,37 @@
 
 https://github.com/user-attachments/assets/a580406c-388c-4fa0-9705-1d0ef84719a0
 
+<br>
+
 ## Overview
 
 The 3D Interactive Christmas Tree is a shared digital gathering space that allows users from anywhere in the world to leave their mark on a synchronized, 3D Tree. 
 
 Built to replicate the joy and festivity of decorating a tree with friends, this application uses high-performance 3D rendering to create a magical environment where every ornament placed by a user is instantly visible to everyone else, creating a living piece of collaborative art.
+
+<br>
+
+## ✨ Features
+
+* **🎄 Interactive 3D World**
+    A fully immersive scene built with **React Three Fiber**. Users can pan, zoom, and rotate around the tree to find the perfect spot for their ornament. The environment features dynamic lighting, a glowing moon, and falling snow.
+
+* **⚡ Real-Time Collaboration**
+    Powered by **Firebase Firestore**, the tree updates instantly. When users hang ornaments onto the tree, the state is synchronized in millieconds; anyone from across the globe will see this change instantaneously. 
+
+* **🤖 AI-Powered Safety & Moderation**
+    Integrated **Xenova Transformers** (BERT models) run directly in the browser to analyze user messages, flagging and blocking inappropriate or harmful content before it ever reaches the database.
+
+* **🎨 Customization**
+    Users can personalize their contribution by selecting unique ornament colors and customizing it to their personal touch, as well as writing custom messages to leave their mark on the holiday season.
+
+* **📱 Responsive & Accessible**
+    The experience features adaptive camera animations that adjust automatically for mobile and desktop screens, ensuring a smooth experience on any device.
+
+* **🎵 Atmospheric Audio**
+    Includes a built-in music player to set the mood, complete with fade-in effects and playback controls.
+  
+* **
 
 <br>
 
@@ -27,28 +53,6 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 * **3D Engine:** Three.js (WebGL)
 * **Backend/Database:** Firebase Firestore (Real-time NoSQL)
 * **Hosting:** Vercel
-
-<br>
-
-## ✨ Features: The Magic
-
-### 🌍 Global Decorating Party (Real-Time Sync)
-Powered by **Firestore**, the tree is a living entity. When a user hangs an ornament onto the tree, anyone from even across the globe will see this change instantaneously. The state is synchronized in milliseconds, creating a true sense of presence and togetherness. 
-
-### 🌟 Immersive 3D Wonderland
-Built with **React Three Fiber**, the scene features a fully interactive 360° camera, allowing you to zoom in on specific decorations or spin around to admire the glowing neon aesthetics and "Cyber-Christmas" theme.
-
-### 🎇 "Sparkle" Physics Engine
-The joy is in the details. I engineered custom particle systems to generate:
-* **Neon Star Bursts** that explode when the tree is fully lit.
-* **Dynamic Text Effects** that write "Merry Christmas" in the sky with glowing trails.
-* **Atmospheric Lighting** that reflects off the ornaments using Standard Material properties.
-
-### 🛡️ Smart Placement System
-To keep the tree looking beautiful, the app uses **Euclidean distance algorithms** to prevent ornaments from clipping into each other or floating in thin air. It feels like magic, but it's math.
-
-// uses AI detection to check for inappropriate messages.
-// Admin Panel
 
 <br>
 
@@ -80,7 +84,7 @@ While the frontend is festive, the backend is robust. Here are the technical hur
 
 
 
-## 💻 Local Setup
+## 💻 Local Development
 
 1.  **Clone the repository**
     ```bash
@@ -106,7 +110,7 @@ While the frontend is festive, the backend is robust. Here are the technical hur
     npm run dev
     ```
 
-
+<br>
 
 ## © Copyright
 Copyright (c) 2025 Bosco Zhang. All Rights Reserved.
