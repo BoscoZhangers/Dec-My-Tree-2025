@@ -61,7 +61,7 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 
 1.  **Clone the repository**
     ```bash
-    git clone [https://github.com/BoscoZhangers/Dec-My-Tree-2025.git](https://github.com/BoscoZhangers/Dec-My-Tree-2025.git)
+    git clone https://github.com/BoscoZhangers/Dec-My-Tree-2025.git
     cd Dec-My-Tree-2025
     ```
 
