@@ -9,6 +9,7 @@
 <div align = "center"> A real-time, global celebration where code meets Christmas spirit. </div>
 
 <br>
+<br>
 
 https://github.com/user-attachments/assets/a580406c-388c-4fa0-9705-1d0ef84719a0
 
