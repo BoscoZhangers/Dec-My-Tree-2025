@@ -52,6 +52,7 @@ Built to replicate the joy and festivity of decorating a tree with friends, this
 
 * **Frontend:** React, React Three Fiber (R3F), Drei
 * **3D Engine:** Three.js (WebGL)
+* **AI:** Transformers.js (@xenova/transformers), BERT (Toxic-BERT model)
 * **Backend/Database:** Firebase Firestore (Real-time NoSQL)
 * **Hosting:** Vercel
 
